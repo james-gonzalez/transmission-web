@@ -176,21 +176,34 @@
             background: #1e2d4d;
         }
         
-        .btn-magnet {
+        .btn-icon {
             background: var(--accent);
             color: var(--bg-primary);
-            padding: 12px 20px;
+            padding: 12px 16px;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            min-width: 48px;
+            font-size: 1.4rem;
         }
         
-        .btn-magnet:hover {
+        .btn-icon:hover {
             background: var(--accent-hover);
         }
         
-        .magnet-icon {
-            font-size: 1.2rem;
+        .btn-file {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            font-size: 1.4rem;
+        }
+        
+        .btn-file:hover {
+            background: #1e2d4d;
         }
         
         .file-input-wrapper {
@@ -634,12 +647,37 @@
                 padding: 6px 5px;
             }
         }
+        
+        footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--bg-secondary);
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        footer a:hover {
+            color: var(--accent-hover);
+        }
+        
+        .version {
+            margin-left: 10px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Transmission</h1>
+            <h1>Transmission Web</h1>
             <div class="stats-bar">
                 <div class="stat">
                     <span class="stat-label">Down:</span>
@@ -677,12 +715,9 @@
             <h2>Add Torrent</h2>
             <form class="add-form" action="/api/add" method="post" enctype="multipart/form-data" id="add-form">
                 <input type="text" name="magnet" id="magnet-input" placeholder="Paste magnet link or torrent URL...">
-                <button type="button" class="btn btn-magnet" onclick="submitMagnet()">
-                    <span class="magnet-icon">🧲</span>
-                    Add Magnet
-                </button>
+                <button type="button" class="btn btn-icon" onclick="submitMagnet()" title="Add magnet link">🧲</button>
                 <div class="file-input-wrapper">
-                    <button type="button" class="btn btn-secondary">Upload .torrent</button>
+                    <button type="button" class="btn btn-file" title="Upload .torrent file">💾</button>
                     <input type="file" name="torrent-file" accept=".torrent" onchange="this.form.submit()">
                 </div>
                 <button type="button" class="btn btn-reannounce" onclick="reannounceAll()">Reannounce All</button>
@@ -1064,5 +1099,12 @@
             if (e.target.id === 'remove-modal') closeModal();
         });
     </script>
+    
+    <footer>
+        <div>
+            Created by <a href="https://github.com/james-gonzalez/transmission-web" target="_blank" rel="noopener noreferrer">James Gonzalez</a>
+            <span class="version">v{{.Version}}</span>
+        </div>
+    </footer>
 </body>
 </html>

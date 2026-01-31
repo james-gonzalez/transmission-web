@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "20"
 
       - name: Run Semantic Release
         id: semantic
@@ -71,6 +71,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ steps.semantic.outputs.new_release_version }}
           tags: |
             ghcr.io/james-gonzalez/transmission-web:latest
             ghcr.io/james-gonzalez/transmission-web:${{ steps.semantic.outputs.new_release_version }}

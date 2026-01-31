@@ -19,6 +19,9 @@ import (
 //go:embed templates/*
 var templatesFS embed.FS
 
+// Version is set during build time via ldflags
+var Version = "dev"
+
 // Config holds application configuration
 type Config struct {
 	TransmissionURL  string
@@ -497,6 +500,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		"Stats":     stats,
 		"PortOpen":  portOpen,
 		"FreeSpace": freeSpace,
+		"Version":   Version,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

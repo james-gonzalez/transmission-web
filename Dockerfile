@@ -1,11 +1,13 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
+ARG VERSION=dev
+
 WORKDIR /app
 COPY go.mod ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o transmission-web .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.Version=${VERSION}" -o transmission-web .
 
 # Runtime stage
 FROM alpine:3.19
