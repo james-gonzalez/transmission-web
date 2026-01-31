@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transmission-web
+  namespace: default
+  labels:
+    app: transmission-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transmission-web
+  template:
+    metadata:
+      labels:
+        app: transmission-web
+    spec:
+      containers:
+      - name: transmission-web
+        image: ghcr.io/james-gonzalez/transmission-web:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: TRANSMISSION_URL
+          value: "http://192.168.86.61:9091/transmission/rpc"
+        - name: TRANSMISSION_USER
+          value: "transmission"
+        - name: TRANSMISSION_PASS
+          valueFrom:
+            secretKeyRef:
+              name: transmission-web-secret
+              key: password
+        - name: LISTEN_ADDR
+          value: ":8080"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10

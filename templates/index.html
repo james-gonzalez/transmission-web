@@ -176,6 +176,23 @@
             background: #1e2d4d;
         }
         
+        .btn-magnet {
+            background: var(--accent);
+            color: var(--bg-primary);
+            padding: 12px 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-magnet:hover {
+            background: var(--accent-hover);
+        }
+        
+        .magnet-icon {
+            font-size: 1.2rem;
+        }
+        
         .file-input-wrapper {
             position: relative;
         }
@@ -658,13 +675,16 @@
         
         <div class="add-section">
             <h2>Add Torrent</h2>
-            <form class="add-form" action="/api/add" method="post" enctype="multipart/form-data">
-                <input type="text" name="magnet" placeholder="Paste magnet link or torrent URL...">
+            <form class="add-form" action="/api/add" method="post" enctype="multipart/form-data" id="add-form">
+                <input type="text" name="magnet" id="magnet-input" placeholder="Paste magnet link or torrent URL...">
+                <button type="button" class="btn btn-magnet" onclick="submitMagnet()">
+                    <span class="magnet-icon">🧲</span>
+                    Add Magnet
+                </button>
                 <div class="file-input-wrapper">
                     <button type="button" class="btn btn-secondary">Upload .torrent</button>
                     <input type="file" name="torrent-file" accept=".torrent" onchange="this.form.submit()">
                 </div>
-                <button type="submit" class="btn btn-primary">Add</button>
                 <button type="button" class="btn btn-reannounce" onclick="reannounceAll()">Reannounce All</button>
             </form>
         </div>
@@ -758,6 +778,19 @@
                 alert('Re-announced all torrents to trackers');
                 refreshData();
             });
+        }
+        
+        function submitMagnet() {
+            const magnetInput = document.getElementById('magnet-input');
+            const magnetValue = magnetInput.value.trim();
+            
+            if (!magnetValue) {
+                alert('Please paste a magnet link first');
+                return;
+            }
+            
+            // Submit the form
+            document.getElementById('add-form').submit();
         }
         
         function showRemoveModal(id, name) {
