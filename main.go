@@ -59,7 +59,7 @@ type Torrent struct {
 	RateDownload   int64   `json:"rateDownload"`
 	RateUpload     int64   `json:"rateUpload"`
 	UploadRatio    float64 `json:"uploadRatio"`
-	TotalSize      int64   `json:"totalSize"`
+	TotalSize      int64   `json:"sizeWhenDone"` // Use sizeWhenDone for actual content size
 	DownloadedEver int64   `json:"downloadedEver"`
 	UploadedEver   int64   `json:"uploadedEver"`
 	PeersConnected int     `json:"peersConnected"`
@@ -187,7 +187,7 @@ func (c *TransmissionClient) GetTorrents() ([]Torrent, error) {
 		Arguments: map[string]interface{}{
 			"fields": []string{
 				"id", "name", "status", "percentDone", "rateDownload", "rateUpload",
-				"uploadRatio", "totalSize", "downloadedEver", "uploadedEver",
+				"uploadRatio", "sizeWhenDone", "downloadedEver", "uploadedEver",
 				"peersConnected", "eta", "error", "errorString", "addedDate",
 			},
 		},
