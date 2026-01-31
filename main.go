@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -132,7 +133,7 @@ func (c *TransmissionClient) doRequest(req *RPCRequest) (*RPCResponse, error) {
 	c.mu.RUnlock()
 
 	body, _ := json.Marshal(req)
-	httpReq, err := http.NewRequest("POST", c.url, strings.NewReader(string(body)))
+	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", c.url, strings.NewReader(string(body)))
 	if err != nil {
 		return nil, err
 	}
@@ -255,11 +256,12 @@ func (c *TransmissionClient) GetFreeSpace(path string) (*FreeSpace, error) {
 func (c *TransmissionClient) AddTorrent(magnetOrURL string, torrentData []byte) error {
 	args := make(map[string]interface{})
 
-	if len(torrentData) > 0 {
+	switch {
+	case len(torrentData) > 0:
 		args["metainfo"] = base64.StdEncoding.EncodeToString(torrentData)
-	} else if magnetOrURL != "" {
+	case magnetOrURL != "":
 		args["filename"] = magnetOrURL
-	} else {
+	default:
 		return fmt.Errorf("no torrent data provided")
 	}
 
@@ -503,7 +505,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	torrents, err := s.client.GetTorrents()
