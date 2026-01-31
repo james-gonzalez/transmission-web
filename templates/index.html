@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transmission Web</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #1f2940;
+            --bg-peers: #172033;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent: #4ecca3;
+            --accent-hover: #3db88f;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --success: #27ae60;
+            --downloading: #3498db;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            color: var(--accent);
+        }
+        
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        .stat-value.download {
+            color: var(--downloading);
+        }
+        
+        .stat-value.upload {
+            color: var(--success);
+        }
+        
+        .stat-value.danger {
+            color: var(--danger);
+        }
+        
+        .port-status {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .port-open {
+            background: var(--success);
+            color: white;
+        }
+        
+        .port-closed {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .add-section {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .add-section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: var(--text-secondary);
+        }
+        
+        .add-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .add-form input[type="text"] {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px 15px;
+            border: 2px solid var(--bg-secondary);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .add-form input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .add-form input[type="text"]::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: #1e2d4d;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+        }
+        
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .torrent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .torrent-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        
+        .torrent-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .torrent-main {
+            padding: 15px 20px;
+            cursor: pointer;
+        }
+        
+        .torrent-main:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .torrent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            gap: 15px;
+        }
+        
+        .torrent-name {
+            font-weight: 600;
+            word-break: break-word;
+            flex: 1;
+        }
+        
+        .torrent-status {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        
+        .torrent-status.downloading {
+            background: var(--downloading);
+            color: white;
+        }
+        
+        .torrent-status.seeding {
+            background: var(--success);
+            color: white;
+        }
+        
+        .torrent-status.stopped {
+            background: var(--text-secondary);
+            color: var(--bg-primary);
+        }
+        
+        .torrent-status.queued {
+            background: var(--warning);
+            color: var(--bg-primary);
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        
+        .progress-fill.downloading {
+            background: var(--downloading);
+        }
+        
+        .progress-fill.complete {
+            background: var(--success);
+        }
+        
+        .torrent-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .torrent-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .torrent-stats span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .torrent-stats .value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .speed-stat {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .speed-stat.download {
+            background: rgba(52, 152, 219, 0.2);
+            color: var(--downloading);
+        }
+        
+        .speed-stat.download .value {
+            color: var(--downloading);
+        }
+        
+        .speed-stat.upload {
+            background: rgba(39, 174, 96, 0.2);
+            color: var(--success);
+        }
+        
+        .speed-stat.upload .value {
+            color: var(--success);
+        }
+        
+        .torrent-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .torrent-actions button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-start {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-stop {
+            background: var(--warning);
+            color: var(--bg-primary);
+        }
+        
+        .btn-remove {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-reannounce {
+            background: #9b59b6;
+            color: white;
+        }
+        
+        .torrent-actions button:hover {
+            opacity: 0.85;
+            transform: scale(1.05);
+        }
+        
+        /* Peer details section */
+        .peers-section {
+            display: none;
+            background: var(--bg-peers);
+            border-top: 1px solid var(--bg-secondary);
+            padding: 15px 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .peers-section.active {
+            display: block;
+        }
+        
+        .peers-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--bg-secondary);
+        }
+        
+        .peers-header h3 {
+            font-size: 0.9rem;
+            color: var(--accent);
+        }
+        
+        .peers-loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+        
+        .peers-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        
+        .peers-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            border-bottom: 1px solid var(--bg-secondary);
+            white-space: nowrap;
+        }
+        
+        .peers-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--bg-secondary);
+            vertical-align: middle;
+        }
+        
+        .peers-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .peers-table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .peer-address {
+            font-family: monospace;
+            color: var(--accent);
+        }
+        
+        .peer-client {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .peer-flags {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .peer-progress {
+            width: 60px;
+        }
+        
+        .peer-progress-bar {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .peer-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+        }
+        
+        .peer-speed {
+            white-space: nowrap;
+        }
+        
+        .peer-speed.download {
+            color: var(--downloading);
+        }
+        
+        .peer-speed.upload {
+            color: var(--success);
+        }
+        
+        .peer-icon {
+            font-size: 0.7rem;
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-right: 3px;
+        }
+        
+        .peer-icon.encrypted {
+            background: var(--success);
+            color: white;
+        }
+        
+        .peer-icon.incoming {
+            background: var(--downloading);
+            color: white;
+        }
+        
+        .peer-icon.utp {
+            background: var(--warning);
+            color: var(--bg-primary);
+        }
+        
+        .no-peers {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+        
+        .click-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-left: 10px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h2 {
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .modal-content h3 {
+            margin-bottom: 15px;
+        }
+        
+        .modal-content p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .refresh-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .refresh-indicator.active {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .add-form {
+                flex-direction: column;
+            }
+            
+            .add-form input[type="text"] {
+                min-width: 100%;
+            }
+            
+            .torrent-header {
+                flex-direction: column;
+            }
+            
+            .torrent-details {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .peers-table {
+                font-size: 0.7rem;
+            }
+            
+            .peers-table th, .peers-table td {
+                padding: 6px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Transmission</h1>
+            <div class="stats-bar">
+                <div class="stat">
+                    <span class="stat-label">Down:</span>
+                    <span class="stat-value download" id="download-speed">{{formatSpeed .Stats.DownloadSpeed}}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Up:</span>
+                    <span class="stat-value upload" id="upload-speed">{{formatSpeed .Stats.UploadSpeed}}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Torrents:</span>
+                    <span class="stat-value" id="torrent-count">{{.Stats.TorrentCount}}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Ratio:</span>
+                    <span class="stat-value" id="total-ratio">{{if .Stats.CumulativeStats.DownloadedBytes}}{{formatRatio (divf (float64 .Stats.CumulativeStats.UploadedBytes) (float64 .Stats.CumulativeStats.DownloadedBytes))}}{{else}}0.00{{end}}</span>
+                </div>
+                {{if .FreeSpace}}
+                <div class="stat">
+                    <span class="stat-label">Disk:</span>
+                    <span class="stat-value">{{formatBytes (sub .FreeSpace.TotalSize .FreeSpace.SizeBytes)}} / {{formatBytes .FreeSpace.TotalSize}}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Free:</span>
+                    <span class="stat-value {{if ltBytes .FreeSpace.SizeBytes 10737418240}}danger{{else}}upload{{end}}">{{formatBytes .FreeSpace.SizeBytes}}</span>
+                </div>
+                {{end}}
+                <span class="port-status {{if .PortOpen}}port-open{{else}}port-closed{{end}}">
+                    Port {{if .PortOpen}}Open{{else}}Closed{{end}}
+                </span>
+            </div>
+        </header>
+        
+        <div class="add-section">
+            <h2>Add Torrent</h2>
+            <form class="add-form" action="/api/add" method="post" enctype="multipart/form-data">
+                <input type="text" name="magnet" placeholder="Paste magnet link or torrent URL...">
+                <div class="file-input-wrapper">
+                    <button type="button" class="btn btn-secondary">Upload .torrent</button>
+                    <input type="file" name="torrent-file" accept=".torrent" onchange="this.form.submit()">
+                </div>
+                <button type="submit" class="btn btn-primary">Add</button>
+                <button type="button" class="btn btn-reannounce" onclick="reannounceAll()">Reannounce All</button>
+            </form>
+        </div>
+        
+        <div class="torrent-list" id="torrent-list">
+            {{if .Torrents}}
+                {{range .Torrents}}
+                <div class="torrent-card" data-id="{{.ID}}">
+                    <div class="torrent-main" onclick="togglePeers({{.ID}}, event)">
+                        <div class="torrent-header">
+                            <span class="torrent-name">{{.Name}}<span class="click-hint">(click for peers)</span></span>
+                            <span class="torrent-status {{statusClass .Status}}">{{statusText .Status}}</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill {{if eq .Status 4}}downloading{{else if ge .PercentDone 1.0}}complete{{end}}" 
+                                 style="width: {{mul .PercentDone 100}}%"></div>
+                        </div>
+                        <div class="torrent-details">
+                            <div class="torrent-stats">
+                                <span>Progress: <span class="value">{{formatPercent .PercentDone}}</span></span>
+                                <span>Size: <span class="value">{{formatBytes .TotalSize}}</span></span>
+                                {{if eq .Status 4}}
+                                <span class="speed-stat download">DL: <span class="value">{{formatSpeed .RateDownload}}</span></span>
+                                {{end}}
+                                {{if or (eq .Status 4) (eq .Status 6)}}
+                                <span class="speed-stat upload">UL: <span class="value">{{formatSpeed .RateUpload}}</span></span>
+                                {{end}}
+                                <span>Ratio: <span class="value">{{formatRatio .UploadRatio}}</span></span>
+                                <span>Peers: <span class="value">{{.PeersConnected}}</span></span>
+                                {{if and (lt .PercentDone 1.0) (gt .ETA 0)}}
+                                <span>ETA: <span class="value">{{formatETA .ETA}}</span></span>
+                                {{end}}
+                            </div>
+                            <div class="torrent-actions" onclick="event.stopPropagation()">
+                                {{if eq .Status 0}}
+                                <button class="btn-start" onclick="torrentAction({{.ID}}, 'start')">Start</button>
+                                {{else}}
+                                <button class="btn-stop" onclick="torrentAction({{.ID}}, 'stop')">Stop</button>
+                                {{end}}
+                                <button class="btn-reannounce" onclick="torrentAction({{.ID}}, 'reannounce')">Reannounce</button>
+                                <button class="btn-remove" onclick="showRemoveModal({{.ID}}, '{{.Name}}')">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="peers-section" id="peers-{{.ID}}">
+                        <div class="peers-loading">Loading peers...</div>
+                    </div>
+                </div>
+                {{end}}
+            {{else}}
+                <div class="empty-state">
+                    <h2>No Torrents</h2>
+                    <p>Add a magnet link or upload a .torrent file to get started</p>
+                </div>
+            {{end}}
+        </div>
+    </div>
+    
+    <div class="modal" id="remove-modal">
+        <div class="modal-content">
+            <h3>Remove Torrent</h3>
+            <p id="remove-torrent-name"></p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="removeTorrent(false)">Remove</button>
+                <button class="btn" style="background: var(--danger); color: white;" onclick="removeTorrent(true)">Remove + Delete Data</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="refresh-indicator" id="refresh-indicator">Refreshing...</div>
+    
+    <script>
+        let removeId = null;
+        let openPeersId = null;
+        
+        function torrentAction(id, action) {
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id, action: action})
+            }).then(() => refreshData());
+        }
+        
+        function reannounceAll() {
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'reannounce-all'})
+            }).then(() => {
+                alert('Re-announced all torrents to trackers');
+                refreshData();
+            });
+        }
+        
+        function showRemoveModal(id, name) {
+            removeId = id;
+            document.getElementById('remove-torrent-name').textContent = name;
+            document.getElementById('remove-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('remove-modal').classList.remove('active');
+            removeId = null;
+        }
+        
+        function removeTorrent(deleteData) {
+            if (removeId === null) return;
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: removeId, action: 'remove', deleteData: deleteData})
+            }).then(() => {
+                closeModal();
+                // Remove the card from DOM
+                const card = document.querySelector(`.torrent-card[data-id="${removeId}"]`);
+                if (card) card.remove();
+                refreshData();
+            });
+        }
+        
+        function togglePeers(id, event) {
+            const section = document.getElementById('peers-' + id);
+            
+            if (section.classList.contains('active')) {
+                section.classList.remove('active');
+                openPeersId = null;
+            } else {
+                // Close any other open peers section
+                document.querySelectorAll('.peers-section.active').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                section.classList.add('active');
+                openPeersId = id;
+                loadPeers(id);
+            }
+        }
+        
+        function loadPeers(id) {
+            const section = document.getElementById('peers-' + id);
+            section.innerHTML = '<div class="peers-loading">Loading peers...</div>';
+            
+            fetch('/api/peers?id=' + id)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        section.innerHTML = '<div class="no-peers">Error: ' + data.error + '</div>';
+                        return;
+                    }
+                    
+                    const peers = data.peers || [];
+                    if (peers.length === 0) {
+                        section.innerHTML = '<div class="no-peers">No peers connected</div>';
+                        return;
+                    }
+                    
+                    let html = `
+                        <div class="peers-header">
+                            <h3>Connected Peers (${peers.length})</h3>
+                        </div>
+                        <table class="peers-table">
+                            <thead>
+                                <tr>
+                                    <th>Address</th>
+                                    <th>Client</th>
+                                    <th>Flags</th>
+                                    <th>Progress</th>
+                                    <th>Down</th>
+                                    <th>Up</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    peers.forEach(peer => {
+                        const icons = [];
+                        if (peer.isEncrypted) icons.push('<span class="peer-icon encrypted">E</span>');
+                        if (peer.isIncoming) icons.push('<span class="peer-icon incoming">I</span>');
+                        if (peer.isUTP) icons.push('<span class="peer-icon utp">U</span>');
+                        
+                        html += `
+                            <tr>
+                                <td class="peer-address">${peer.address}:${peer.port}</td>
+                                <td class="peer-client" title="${escapeHtml(peer.clientName)}">${escapeHtml(peer.clientName)}</td>
+                                <td class="peer-flags">${icons.join('')} ${peer.flagStr}</td>
+                                <td class="peer-progress">
+                                    <div class="peer-progress-bar">
+                                        <div class="peer-progress-fill" style="width: ${(peer.progress * 100).toFixed(1)}%"></div>
+                                    </div>
+                                    ${(peer.progress * 100).toFixed(0)}%
+                                </td>
+                                <td class="peer-speed download">${peer.rateToClient > 0 ? formatSpeed(peer.rateToClient) : '-'}</td>
+                                <td class="peer-speed upload">${peer.rateToPeer > 0 ? formatSpeed(peer.rateToPeer) : '-'}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    section.innerHTML = html;
+                })
+                .catch(err => {
+                    section.innerHTML = '<div class="no-peers">Failed to load peers</div>';
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatSpeed(bytes) {
+            if (bytes < 1024) return bytes + ' B/s';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB/s';
+            return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB/s';
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' GB';
+            return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' TB';
+        }
+        
+        function formatPercent(pct) {
+            return (pct * 100).toFixed(1) + '%';
+        }
+        
+        function formatRatio(ratio) {
+            if (ratio < 0) return 'N/A';
+            return ratio.toFixed(2);
+        }
+        
+        function formatETA(seconds) {
+            if (seconds < 0) return 'Unknown';
+            if (seconds === 0) return 'Done';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            if (hours > 0) return hours + 'h ' + minutes + 'm';
+            if (minutes > 0) return minutes + 'm ' + secs + 's';
+            return secs + 's';
+        }
+        
+        function getStatusText(status) {
+            const statusMap = {0: 'Stopped', 1: 'Queued (check)', 2: 'Checking', 3: 'Queued (dl)', 4: 'Downloading', 5: 'Queued (seed)', 6: 'Seeding'};
+            return statusMap[status] || 'Unknown';
+        }
+        
+        function getStatusClass(status) {
+            const classMap = {0: 'stopped', 1: 'queued', 2: 'queued', 3: 'queued', 4: 'downloading', 5: 'queued', 6: 'seeding'};
+            return classMap[status] || '';
+        }
+        
+        function updateTorrentCard(torrent) {
+            const card = document.querySelector(`.torrent-card[data-id="${torrent.id}"]`);
+            if (!card) return;
+            
+            // Update status badge
+            const statusBadge = card.querySelector('.torrent-status');
+            if (statusBadge) {
+                statusBadge.textContent = getStatusText(torrent.status);
+                statusBadge.className = 'torrent-status ' + getStatusClass(torrent.status);
+            }
+            
+            // Update progress bar
+            const progressFill = card.querySelector('.progress-fill');
+            if (progressFill) {
+                progressFill.style.width = (torrent.percentDone * 100) + '%';
+                progressFill.className = 'progress-fill';
+                if (torrent.status === 4) progressFill.classList.add('downloading');
+                else if (torrent.percentDone >= 1.0) progressFill.classList.add('complete');
+            }
+            
+            // Update stats
+            const stats = card.querySelector('.torrent-stats');
+            if (stats) {
+                let html = `<span>Progress: <span class="value">${formatPercent(torrent.percentDone)}</span></span>`;
+                html += `<span>Size: <span class="value">${formatBytes(torrent.totalSize)}</span></span>`;
+                
+                if (torrent.status === 4) {
+                    html += `<span class="speed-stat download">DL: <span class="value">${formatSpeed(torrent.rateDownload)}</span></span>`;
+                }
+                if (torrent.status === 4 || torrent.status === 6) {
+                    html += `<span class="speed-stat upload">UL: <span class="value">${formatSpeed(torrent.rateUpload)}</span></span>`;
+                }
+                
+                html += `<span>Ratio: <span class="value">${formatRatio(torrent.uploadRatio)}</span></span>`;
+                html += `<span>Peers: <span class="value">${torrent.peersConnected}</span></span>`;
+                
+                if (torrent.percentDone < 1.0 && torrent.eta > 0) {
+                    html += `<span>ETA: <span class="value">${formatETA(torrent.eta)}</span></span>`;
+                }
+                
+                stats.innerHTML = html;
+            }
+            
+            // Update action buttons
+            const actions = card.querySelector('.torrent-actions');
+            if (actions) {
+                const startStopBtn = actions.querySelector('.btn-start, .btn-stop');
+                if (startStopBtn) {
+                    if (torrent.status === 0) {
+                        startStopBtn.className = 'btn-start';
+                        startStopBtn.textContent = 'Start';
+                        startStopBtn.onclick = () => torrentAction(torrent.id, 'start');
+                    } else {
+                        startStopBtn.className = 'btn-stop';
+                        startStopBtn.textContent = 'Stop';
+                        startStopBtn.onclick = () => torrentAction(torrent.id, 'stop');
+                    }
+                }
+            }
+        }
+        
+        function updateGlobalStats(stats) {
+            const dlSpeed = document.getElementById('download-speed');
+            const ulSpeed = document.getElementById('upload-speed');
+            const torrentCount = document.getElementById('torrent-count');
+            
+            if (dlSpeed) dlSpeed.textContent = formatSpeed(stats.downloadSpeed);
+            if (ulSpeed) ulSpeed.textContent = formatSpeed(stats.uploadSpeed);
+            if (torrentCount) torrentCount.textContent = stats.torrentCount;
+        }
+        
+        function refreshData() {
+            fetch('/api/torrents')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    // Update global stats
+                    if (data.stats) {
+                        updateGlobalStats(data.stats);
+                    }
+                    
+                    // Update each torrent card
+                    if (data.torrents) {
+                        data.torrents.forEach(torrent => {
+                            updateTorrentCard(torrent);
+                        });
+                    }
+                    
+                    // Refresh peers panel if open
+                    if (openPeersId !== null) {
+                        loadPeers(openPeersId);
+                    }
+                })
+                .catch(err => console.error('Refresh failed:', err));
+        }
+        
+        // Auto-refresh every 3 seconds without page reload
+        setInterval(refreshData, 3000);
+        
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+        
+        // Close modal on background click
+        document.getElementById('remove-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'remove-modal') closeModal();
+        });
+    </script>
+</body>
+</html>
