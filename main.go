@@ -508,20 +508,26 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 
 	torrents, err := s.client.GetTorrents()
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
 		return
 	}
 
 	stats, err := s.client.GetSessionStats()
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"torrents": torrents,
 		"stats":    stats,
-	})
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
@@ -597,10 +603,14 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
@@ -608,25 +618,33 @@ func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
 
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
-		json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
 		return
 	}
 
 	var id int
 	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
 		return
 	}
 
 	peers, err := s.client.GetPeers(id)
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"peers": peers,
-	})
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
 }
 
 func main() {
@@ -653,7 +671,16 @@ func main() {
 	log.Printf("Starting server on %s", config.ListenAddr)
 	log.Printf("Connecting to Transmission at %s", config.TransmissionURL)
 
-	if err := http.ListenAndServe(config.ListenAddr, nil); err != nil {
+	// Create HTTP server with timeouts for security
+	srv := &http.Server{
+		Addr:              config.ListenAddr,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
