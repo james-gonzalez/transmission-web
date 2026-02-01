@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -34,6 +35,17 @@ type DownloadedItem struct {
 	ItemTitle    string    `json:"itemTitle"`
 	ItemLink     string    `json:"itemLink"`
 	DownloadedAt time.Time `json:"downloadedAt"`
+}
+
+// FeedCheckLog stores information about feed checks
+type FeedCheckLog struct {
+	ID              int       `json:"id"`
+	FeedID          int       `json:"feedId"`
+	CheckedAt       time.Time `json:"checkedAt"`
+	ItemsFound      int       `json:"itemsFound"`
+	ItemsMatched    int       `json:"itemsMatched"`
+	ItemsDownloaded int       `json:"itemsDownloaded"`
+	SampleTitles    string    `json:"sampleTitles"` // JSON array of first 10 titles
 }
 
 // FeedManager handles RSS feed polling and management
@@ -119,8 +131,19 @@ func createTables(db *sql.DB) error {
 			FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE,
 			UNIQUE(feed_id, item_guid)
 		)`,
+		`CREATE TABLE IF NOT EXISTS feed_check_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			feed_id INTEGER NOT NULL,
+			checked_at DATETIME NOT NULL,
+			items_found INTEGER NOT NULL,
+			items_matched INTEGER NOT NULL,
+			items_downloaded INTEGER NOT NULL,
+			sample_titles TEXT,
+			FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_downloaded_guid ON downloaded_items(item_guid)`,
 		`CREATE INDEX IF NOT EXISTS idx_feeds_enabled ON feeds(enabled)`,
+		`CREATE INDEX IF NOT EXISTS idx_check_log_feed ON feed_check_log(feed_id, checked_at DESC)`,
 	}
 
 	for _, query := range queries {
@@ -224,14 +247,25 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 	log.Printf("Checking RSS feed '%s' with pattern: %s", feed.Name, feed.Pattern)
 	log.Printf("Found %d items in feed", len(parsedFeed.Items))
 
+	// Collect sample titles for logging
+	sampleTitles := []string{}
+	for i, item := range parsedFeed.Items {
+		if i < 10 { // Keep first 10 titles as sample
+			sampleTitles = append(sampleTitles, item.Title)
+		}
+	}
+
 	matchCount := 0
+	downloadedCount := 0
+
 	for _, item := range parsedFeed.Items {
 		// Check if item matches pattern
 		matched := pattern.MatchString(item.Title)
 		if !matched {
-			log.Printf("  ❌ No match: %s", item.Title)
 			continue
 		}
+
+		matchCount++
 		log.Printf("  ✓ Matched: %s", item.Title)
 
 		// Check if we've already downloaded this item
@@ -243,28 +277,43 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 		// Try to find a torrent link
 		torrentLink := fm.findTorrentLink(item)
 		if torrentLink == "" {
-			log.Printf("No torrent link found for: %s", item.Title)
+			log.Printf("  ⚠ No torrent link found for: %s", item.Title)
 			continue
 		}
 
 		// Add torrent to Transmission
 		if err := fm.client.AddTorrent(torrentLink, nil); err != nil {
-			log.Printf("Failed to add torrent %s: %v", item.Title, err)
+			log.Printf("  ❌ Failed to add torrent %s: %v", item.Title, err)
 			continue
 		}
 
 		// Mark as downloaded
 		if err := fm.markDownloaded(feedID, item); err != nil {
-			log.Printf("Failed to mark item as downloaded: %v", err)
+			log.Printf("  ⚠ Failed to mark item as downloaded: %v", err)
 			continue
 		}
 
-		matchCount++
-		log.Printf("Added torrent from RSS feed %s: %s", feed.Name, item.Title)
+		downloadedCount++
+		log.Printf("  ✅ Added torrent from RSS feed %s: %s", feed.Name, item.Title)
+	}
+
+	// Log summary
+	log.Printf("Feed check complete: %d total items, %d matched pattern, %d downloaded",
+		len(parsedFeed.Items), matchCount, downloadedCount)
+
+	// Save check log
+	sampleJSON, _ := json.Marshal(sampleTitles)
+	_, err = fm.db.Exec(
+		`INSERT INTO feed_check_log (feed_id, checked_at, items_found, items_matched, items_downloaded, sample_titles)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		feedID, time.Now(), len(parsedFeed.Items), matchCount, downloadedCount, string(sampleJSON),
+	)
+	if err != nil {
+		log.Printf("Failed to save check log: %v", err)
 	}
 
 	// Update feed status
-	fm.updateFeedChecked(feedID, matchCount, "")
+	fm.updateFeedChecked(feedID, downloadedCount, "")
 	return nil
 }
 
@@ -471,6 +520,40 @@ func (fm *FeedManager) GetDownloadedItems(feedID int, limit int) ([]DownloadedIt
 	}
 
 	return items, rows.Err()
+}
+
+// GetFeedCheckLogs returns check logs for a feed
+func (fm *FeedManager) GetFeedCheckLogs(feedID int, limit int) ([]FeedCheckLog, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	rows, err := fm.db.Query(`
+		SELECT id, feed_id, checked_at, items_found, items_matched, items_downloaded, sample_titles
+		FROM feed_check_log
+		WHERE feed_id = ?
+		ORDER BY checked_at DESC
+		LIMIT ?
+	`, feedID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []FeedCheckLog
+	for rows.Next() {
+		var log FeedCheckLog
+		err := rows.Scan(
+			&log.ID, &log.FeedID, &log.CheckedAt, &log.ItemsFound,
+			&log.ItemsMatched, &log.ItemsDownloaded, &log.SampleTitles,
+		)
+		if err != nil {
+			return nil, err
+		}
+		logs = append(logs, log)
+	}
+
+	return logs, rows.Err()
 }
 
 // Close closes the database connection

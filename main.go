@@ -928,6 +928,40 @@ func (s *Server) handleFeedHistory(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleFeedCheckLogs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	logs, err := s.feedManager.GetFeedCheckLogs(id, 20)
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"logs": logs,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func main() {
 	config := Config{
 		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://192.168.86.61:9091/transmission/rpc"),
@@ -970,6 +1004,7 @@ func main() {
 	http.HandleFunc("/api/feeds/delete", server.handleDeleteFeed)
 	http.HandleFunc("/api/feeds/check", server.handleCheckFeed)
 	http.HandleFunc("/api/feeds/history", server.handleFeedHistory)
+	http.HandleFunc("/api/feeds/logs", server.handleFeedCheckLogs)
 
 	log.Printf("Starting server on %s", config.ListenAddr)
 	log.Printf("Connecting to Transmission at %s", config.TransmissionURL)
