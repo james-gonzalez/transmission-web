@@ -335,8 +335,8 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 	sampleJSON, _ := json.Marshal(sampleTitles)
 	_, err = fm.db.Exec(
 		`INSERT INTO feed_check_log (feed_id, checked_at, items_found, items_matched, items_downloaded, sample_titles)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		feedID, time.Now(), len(parsedFeed.Items), matchCount, downloadedCount, string(sampleJSON),
+		 VALUES (?, datetime('now'), ?, ?, ?, ?)`,
+		feedID, len(parsedFeed.Items), matchCount, downloadedCount, string(sampleJSON),
 	)
 	if err != nil {
 		log.Printf("Failed to save check log: %v", err)
@@ -392,17 +392,17 @@ func (fm *FeedManager) isDownloaded(feedID int, guid string) bool {
 func (fm *FeedManager) markDownloaded(feedID int, item *gofeed.Item) error {
 	_, err := fm.db.Exec(
 		`INSERT INTO downloaded_items (feed_id, item_guid, item_title, item_link, downloaded_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		feedID, item.GUID, item.Title, item.Link, time.Now(),
+		 VALUES (?, ?, ?, ?, datetime('now'))`,
+		feedID, item.GUID, item.Title, item.Link,
 	)
 	return err
 }
 
 func (fm *FeedManager) updateFeedChecked(feedID int, matchCount int, errorMsg string) {
 	_, err := fm.db.Exec(
-		`UPDATE feeds SET last_checked = ?, last_error = ?, match_count = match_count + ?
+		`UPDATE feeds SET last_checked = datetime('now'), last_error = ?, match_count = match_count + ?
 		 WHERE id = ?`,
-		time.Now(), errorMsg, matchCount, feedID,
+		errorMsg, matchCount, feedID,
 	)
 	if err != nil {
 		log.Printf("Failed to update feed status: %v", err)
@@ -411,8 +411,8 @@ func (fm *FeedManager) updateFeedChecked(feedID int, matchCount int, errorMsg st
 
 func (fm *FeedManager) updateFeedError(feedID int, errorMsg string) {
 	_, err := fm.db.Exec(
-		"UPDATE feeds SET last_checked = ?, last_error = ? WHERE id = ?",
-		time.Now(), errorMsg, feedID,
+		"UPDATE feeds SET last_checked = datetime('now'), last_error = ? WHERE id = ?",
+		errorMsg, feedID,
 	)
 	if err != nil {
 		log.Printf("Failed to update feed error: %v", err)
@@ -443,7 +443,8 @@ func (fm *FeedManager) GetFeeds() ([]Feed, error) {
 			return nil, err
 		}
 		if lastChecked != "" {
-			feed.LastChecked, _ = time.Parse(time.RFC3339, lastChecked)
+			// Try multiple date formats
+			feed.LastChecked = parseSQLiteDate(lastChecked)
 		}
 		feeds = append(feeds, feed)
 	}
@@ -467,9 +468,29 @@ func (fm *FeedManager) GetFeed(id int) (*Feed, error) {
 		return nil, err
 	}
 	if lastChecked != "" {
-		feed.LastChecked, _ = time.Parse(time.RFC3339, lastChecked)
+		feed.LastChecked = parseSQLiteDate(lastChecked)
 	}
 	return &feed, nil
+}
+
+// parseSQLiteDate tries to parse dates in various SQLite formats
+func parseSQLiteDate(dateStr string) time.Time {
+	formats := []string{
+		"2006-01-02 15:04:05",           // SQLite datetime format
+		"2006-01-02T15:04:05Z",          // RFC3339
+		"2006-01-02T15:04:05.999999999", // Go time.Time string format
+		time.RFC3339,
+		time.RFC3339Nano,
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t
+		}
+	}
+
+	// If all parsing fails, return zero time
+	return time.Time{}
 }
 
 // AddFeed adds a new feed
