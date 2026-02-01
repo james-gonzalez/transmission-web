@@ -241,27 +241,29 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 	// Parse the RSS feed with retry logic
 	log.Printf("Fetching RSS feed: %s", feed.Name)
 	var parsedFeed *gofeed.Feed
-	maxRetries := 3
-	baseDelay := 5 * time.Second
+	maxRetries := 2               // Reduce to 2 retries to avoid hammering the tracker
+	baseDelay := 10 * time.Second // Longer initial delay
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		log.Printf("Attempt %d/%d: Fetching %s", attempt, maxRetries, feed.URL)
 		parsedFeed, err = fm.parser.ParseURLWithContext(feed.URL, ctx)
 		if err == nil {
-			log.Printf("Successfully fetched feed '%s' on attempt %d", feed.Name, attempt)
+			log.Printf("✅ Successfully fetched feed '%s' on attempt %d", feed.Name, attempt)
 			break
 		}
 
 		if attempt < maxRetries {
-			delay := baseDelay * time.Duration(attempt) // Exponential backoff
-			log.Printf("Attempt %d/%d failed for feed '%s': %v. Retrying in %v...",
+			delay := baseDelay * time.Duration(attempt) // 10s, 20s
+			log.Printf("⚠️  Attempt %d/%d failed for feed '%s': %v. Retrying in %v...",
 				attempt, maxRetries, feed.Name, err, delay)
 			time.Sleep(delay)
 		} else {
 			errorMsg := fmt.Sprintf("Failed after %d attempts: %v", maxRetries, err)
 			fm.updateFeedError(feedID, errorMsg)
-			log.Printf("❌ Error fetching RSS feed '%s' after %d attempts: %v", feed.Name, maxRetries, err)
-			return fmt.Errorf("failed to parse feed: %w", err)
+			log.Printf("❌ Feed '%s' temporarily unavailable after %d attempts. Will retry on next check cycle.", feed.Name, maxRetries)
+			// Don't return error - just log it and let the next check cycle try again
+			// This way we don't spam the tracker
+			return nil
 		}
 	}
 
