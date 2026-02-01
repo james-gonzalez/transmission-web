@@ -178,15 +178,22 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 		return fmt.Errorf("invalid regex pattern: %w", err)
 	}
 
+	log.Printf("Checking RSS feed '%s' with pattern: %s", feed.Name, feed.Pattern)
+	log.Printf("Found %d items in feed", len(parsedFeed.Items))
+
 	matchCount := 0
 	for _, item := range parsedFeed.Items {
 		// Check if item matches pattern
-		if !pattern.MatchString(item.Title) {
+		matched := pattern.MatchString(item.Title)
+		if !matched {
+			log.Printf("  ❌ No match: %s", item.Title)
 			continue
 		}
+		log.Printf("  ✓ Matched: %s", item.Title)
 
 		// Check if we've already downloaded this item
 		if fm.isDownloaded(feedID, item.GUID) {
+			log.Printf("  ⏭ Already downloaded: %s", item.Title)
 			continue
 		}
 
