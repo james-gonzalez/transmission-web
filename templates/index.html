@@ -993,6 +993,18 @@
         </div>
     </div>
     
+    <div class="modal" id="feed-log-modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
+            <h3 id="feed-log-title">Feed Check Log</h3>
+            <div id="feed-log-content" style="margin-top: 20px;">
+                <div class="peers-loading">Loading...</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeFeedLogModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="refresh-indicator" id="refresh-indicator">Refreshing...</div>
     
     <script>
@@ -1384,6 +1396,7 @@
             if (e.key === 'Escape') {
                 closeModal();
                 closeFeedModal();
+                closeFeedLogModal();
             }
         });
         
@@ -1394,6 +1407,10 @@
         
         document.getElementById('feed-modal').addEventListener('click', (e) => {
             if (e.target.id === 'feed-modal') closeFeedModal();
+        });
+        
+        document.getElementById('feed-log-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'feed-log-modal') closeFeedLogModal();
         });
         
         // RSS Feeds functionality
@@ -1456,6 +1473,7 @@
                                 </div>
                                 <div class="feed-actions">
                                     <button class="btn-start" onclick="checkFeedNow(${feed.id})">Check Now</button>
+                                    <button class="btn btn-secondary" onclick="viewFeedLog(${feed.id}, '${escapeHtml(feed.name)}')">View Log</button>
                                     <button class="btn btn-secondary" onclick="editFeed(${feed.id})">Edit</button>
                                     <button class="btn-remove" onclick="deleteFeed(${feed.id}, '${escapeHtml(feed.name)}')">Delete</button>
                                 </div>
@@ -1588,6 +1606,70 @@
         function closeFeedModal() {
             document.getElementById('feed-modal').classList.remove('active');
             currentFeedId = null;
+        }
+        
+        function viewFeedLog(feedId, feedName) {
+            document.getElementById('feed-log-title').textContent = `Feed Check Log: ${feedName}`;
+            document.getElementById('feed-log-content').innerHTML = '<div class="peers-loading">Loading...</div>';
+            document.getElementById('feed-log-modal').classList.add('active');
+            
+            fetch('/api/feeds/logs?id=' + feedId)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('feed-log-content').innerHTML = `<div class="no-peers">Error: ${escapeHtml(data.error)}</div>`;
+                        return;
+                    }
+                    
+                    const logs = data.logs || [];
+                    if (logs.length === 0) {
+                        document.getElementById('feed-log-content').innerHTML = '<div class="no-peers">No check history yet</div>';
+                        return;
+                    }
+                    
+                    let html = `
+                        <table class="peers-table">
+                            <thead>
+                                <tr>
+                                    <th>Check Time</th>
+                                    <th>Items Found</th>
+                                    <th>Matched</th>
+                                    <th>Downloaded</th>
+                                    <th>Sample Titles</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    logs.forEach(log => {
+                        const checkTime = formatDateTime(new Date(log.checkedAt));
+                        const sampleTitles = log.sampleTitles || [];
+                        const titlesHtml = sampleTitles.length > 0 
+                            ? sampleTitles.map(t => `<div style="margin: 2px 0; font-size: 0.9em;">${escapeHtml(t)}</div>`).join('')
+                            : '<span style="color: var(--text-secondary);">None</span>';
+                        
+                        html += `
+                            <tr>
+                                <td style="white-space: nowrap;">${checkTime}</td>
+                                <td style="text-align: center;">${log.itemsFound}</td>
+                                <td style="text-align: center; ${log.itemsMatched > 0 ? 'color: var(--accent);' : ''}">${log.itemsMatched}</td>
+                                <td style="text-align: center; ${log.itemsDownloaded > 0 ? 'color: var(--success); font-weight: 600;' : ''}">${log.itemsDownloaded}</td>
+                                <td style="max-width: 500px; overflow: hidden; text-overflow: ellipsis;">${titlesHtml}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('feed-log-content').innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Failed to load feed logs:', err);
+                    document.getElementById('feed-log-content').innerHTML = '<div class="no-peers">Failed to load logs</div>';
+                });
+        }
+        
+        function closeFeedLogModal() {
+            document.getElementById('feed-log-modal').classList.remove('active');
         }
     </script>
     
