@@ -517,19 +517,21 @@ var funcMap = template.FuncMap{
 
 // Server holds the application state
 type Server struct {
-	client *TransmissionClient
-	tmpl   *template.Template
+	client      *TransmissionClient
+	feedManager *FeedManager
+	tmpl        *template.Template
 }
 
-func NewServer(client *TransmissionClient) (*Server, error) {
+func NewServer(client *TransmissionClient, feedManager *FeedManager) (*Server, error) {
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
 
 	return &Server{
-		client: client,
-		tmpl:   tmpl,
+		client:      client,
+		feedManager: feedManager,
+		tmpl:        tmpl,
 	}, nil
 }
 
@@ -746,6 +748,186 @@ func (s *Server) handleTrackers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleGetFeeds(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	feeds, err := s.feedManager.GetFeeds()
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"feeds": feeds,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var feed Feed
+	if err := json.NewDecoder(r.Body).Decode(&feed); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := s.feedManager.AddFeed(&feed); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(feed); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var feed Feed
+	if err := json.NewDecoder(r.Body).Decode(&feed); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := s.feedManager.UpdateFeed(&feed); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := s.feedManager.DeleteFeed(id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (s *Server) handleCheckFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	// Check feed in a goroutine to not block the HTTP response
+	go func() {
+		if err := s.feedManager.CheckFeed(id); err != nil {
+			log.Printf("Error checking feed: %v", err)
+		}
+	}()
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "checking"}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func (s *Server) handleFeedHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	items, err := s.feedManager.GetDownloadedItems(id, 100)
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"items": items,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func main() {
 	config := Config{
 		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://192.168.86.61:9091/transmission/rpc"),
@@ -756,8 +938,21 @@ func main() {
 
 	client := NewTransmissionClient(config.TransmissionURL, config.TransmissionUser, config.TransmissionPass)
 
-	server, err := NewServer(client)
+	// Initialize RSS feed manager
+	dbPath := getEnv("DB_PATH", "./feeds.db")
+	feedManager, err := NewFeedManager(dbPath, client)
 	if err != nil {
+		log.Fatalf("Failed to create feed manager: %v", err)
+	}
+
+	// Start RSS feed polling
+	feedManager.Start()
+
+	server, err := NewServer(client, feedManager)
+	if err != nil {
+		if closeErr := feedManager.Close(); closeErr != nil {
+			log.Printf("Failed to close feed manager: %v", closeErr)
+		}
 		log.Fatalf("Failed to create server: %v", err)
 	}
 
@@ -768,8 +963,17 @@ func main() {
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
 
+	// RSS feed endpoints
+	http.HandleFunc("/api/feeds", server.handleGetFeeds)
+	http.HandleFunc("/api/feeds/add", server.handleAddFeed)
+	http.HandleFunc("/api/feeds/update", server.handleUpdateFeed)
+	http.HandleFunc("/api/feeds/delete", server.handleDeleteFeed)
+	http.HandleFunc("/api/feeds/check", server.handleCheckFeed)
+	http.HandleFunc("/api/feeds/history", server.handleFeedHistory)
+
 	log.Printf("Starting server on %s", config.ListenAddr)
 	log.Printf("Connecting to Transmission at %s", config.TransmissionURL)
+	log.Printf("RSS feed database: %s", dbPath)
 
 	// Create HTTP server with timeouts for security
 	srv := &http.Server{
@@ -781,6 +985,9 @@ func main() {
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
+		if closeErr := feedManager.Close(); closeErr != nil {
+			log.Printf("Failed to close feed manager: %v", closeErr)
+		}
 		log.Fatalf("Server failed: %v", err)
 	}
 }

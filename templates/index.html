@@ -709,6 +709,111 @@
             color: var(--text-secondary);
             font-size: 0.85rem;
         }
+        
+        /* RSS Feeds Styles */
+        .rss-section {
+            margin-bottom: 20px;
+        }
+        
+        .rss-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .feed-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s;
+        }
+        
+        .feed-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .feed-info h3 {
+            margin: 0 0 5px 0;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+        }
+        
+        .feed-url {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+        
+        .feed-pattern {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--accent);
+        }
+        
+        .feed-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .feed-stats span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .feed-stats .value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .feed-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .feed-actions button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .feed-status {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .feed-status.enabled {
+            background: var(--success);
+            color: white;
+        }
+        
+        .feed-status.disabled {
+            background: var(--text-secondary);
+            color: var(--bg-primary);
+        }
     </style>
 </head>
 <body>
@@ -758,7 +863,25 @@
                     <input type="file" name="torrent-file" id="torrent-file" accept=".torrent" onchange="this.form.submit()" style="display: none;">
                 </div>
                 <button type="button" class="btn btn-reannounce" onclick="reannounceAll()">Reannounce All</button>
+                <button type="button" class="btn btn-secondary" onclick="toggleRSSFeeds()" style="margin-left: auto;">📡 RSS Feeds</button>
             </form>
+        </div>
+        
+        <div class="rss-section" id="rss-section" style="display: none;">
+            <div class="add-section">
+                <h2>RSS Feed Subscriptions</h2>
+                <div class="rss-controls">
+                    <button class="btn btn-primary" onclick="showAddFeedModal()">Add Feed</button>
+                    <button class="btn btn-secondary" onclick="loadFeeds()">Refresh List</button>
+                </div>
+            </div>
+            
+            <div class="torrent-list" id="feeds-list">
+                <div class="empty-state">
+                    <h2>Loading RSS Feeds...</h2>
+                    <p>Please wait</p>
+                </div>
+            </div>
         </div>
         
         <div class="torrent-list" id="torrent-list">
@@ -832,6 +955,40 @@
                 <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="btn btn-primary" onclick="removeTorrent(false)">Remove</button>
                 <button class="btn" style="background: var(--danger); color: white;" onclick="removeTorrent(true)">Remove + Delete Data</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="feed-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3 id="feed-modal-title">Add RSS Feed</h3>
+            <form id="feed-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <input type="hidden" id="feed-id">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Feed Name</label>
+                    <input type="text" id="feed-name" placeholder="My Favorite Torrents" style="width: 100%; padding: 10px; border: 2px solid var(--bg-secondary); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary);" required>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">RSS Feed URL</label>
+                    <input type="url" id="feed-url" placeholder="https://example.com/feed.rss" style="width: 100%; padding: 10px; border: 2px solid var(--bg-secondary); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary);" required>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Pattern (Regex) <span style="font-size: 0.85em; color: var(--text-secondary);">- Leave empty to match all</span></label>
+                    <input type="text" id="feed-pattern" placeholder=".*1080p.*|.*HEVC.*" value=".*" style="width: 100%; padding: 10px; border: 2px solid var(--bg-secondary); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-family: monospace;" required>
+                    <small style="color: var(--text-secondary);">Examples: .*1080p.*, Game\.of\.Thrones.*S08.*, ^(?!.*CAM).*</small>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Check Interval (minutes)</label>
+                    <input type="number" id="feed-interval" value="15" min="5" max="1440" style="width: 100%; padding: 10px; border: 2px solid var(--bg-secondary); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary);" required>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="feed-enabled" checked style="width: 20px; height: 20px;">
+                    <label for="feed-enabled">Enabled</label>
+                </div>
+            </form>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeFeedModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveFeed()">Save Feed</button>
             </div>
         </div>
     </div>
@@ -1213,13 +1370,214 @@
         
         // Close modal on escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') {
+                closeModal();
+                closeFeedModal();
+            }
         });
         
         // Close modal on background click
         document.getElementById('remove-modal').addEventListener('click', (e) => {
             if (e.target.id === 'remove-modal') closeModal();
         });
+        
+        document.getElementById('feed-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'feed-modal') closeFeedModal();
+        });
+        
+        // RSS Feeds functionality
+        let currentFeedId = null;
+        let rssViewActive = false;
+        
+        function toggleRSSFeeds() {
+            rssViewActive = !rssViewActive;
+            const rssSection = document.getElementById('rss-section');
+            const torrentList = document.getElementById('torrent-list');
+            
+            if (rssViewActive) {
+                rssSection.style.display = 'block';
+                torrentList.style.display = 'none';
+                loadFeeds();
+            } else {
+                rssSection.style.display = 'none';
+                torrentList.style.display = 'flex';
+            }
+        }
+        
+        function loadFeeds() {
+            fetch('/api/feeds')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error loading feeds: ' + data.error);
+                        return;
+                    }
+                    
+                    const feedsList = document.getElementById('feeds-list');
+                    const feeds = data.feeds || [];
+                    
+                    if (feeds.length === 0) {
+                        feedsList.innerHTML = '<div class="empty-state"><h2>No RSS Feeds</h2><p>Click "Add Feed" to subscribe to an RSS feed</p></div>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    feeds.forEach(feed => {
+                        const lastChecked = feed.lastChecked ? new Date(feed.lastChecked).toLocaleString() : 'Never';
+                        const statusClass = feed.enabled ? 'enabled' : 'disabled';
+                        const statusText = feed.enabled ? 'Enabled' : 'Disabled';
+                        
+                        html += `
+                            <div class="feed-card" data-feed-id="${feed.id}">
+                                <div class="feed-header">
+                                    <div class="feed-info">
+                                        <h3>${escapeHtml(feed.name)}</h3>
+                                        <div class="feed-url">${escapeHtml(feed.url)}</div>
+                                        <div class="feed-pattern">Pattern: ${escapeHtml(feed.pattern)}</div>
+                                    </div>
+                                    <span class="feed-status ${statusClass}">${statusText}</span>
+                                </div>
+                                <div class="feed-stats">
+                                    <span>Interval: <span class="value">${feed.checkInterval} min</span></span>
+                                    <span>Last Checked: <span class="value">${lastChecked}</span></span>
+                                    <span>Total Matches: <span class="value">${feed.matchCount || 0}</span></span>
+                                    ${feed.lastError ? `<span style="color: var(--danger);">Error: ${escapeHtml(feed.lastError)}</span>` : ''}
+                                </div>
+                                <div class="feed-actions">
+                                    <button class="btn-start" onclick="checkFeedNow(${feed.id})">Check Now</button>
+                                    <button class="btn btn-secondary" onclick="editFeed(${feed.id})">Edit</button>
+                                    <button class="btn-remove" onclick="deleteFeed(${feed.id}, '${escapeHtml(feed.name)}')">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    feedsList.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error('Failed to load feeds:', err);
+                    alert('Failed to load RSS feeds');
+                });
+        }
+        
+        function showAddFeedModal() {
+            currentFeedId = null;
+            document.getElementById('feed-modal-title').textContent = 'Add RSS Feed';
+            document.getElementById('feed-id').value = '';
+            document.getElementById('feed-name').value = '';
+            document.getElementById('feed-url').value = '';
+            document.getElementById('feed-pattern').value = '.*';
+            document.getElementById('feed-interval').value = '15';
+            document.getElementById('feed-enabled').checked = true;
+            document.getElementById('feed-modal').classList.add('active');
+        }
+        
+        function editFeed(id) {
+            fetch('/api/feeds')
+                .then(r => r.json())
+                .then(data => {
+                    const feed = (data.feeds || []).find(f => f.id === id);
+                    if (!feed) {
+                        alert('Feed not found');
+                        return;
+                    }
+                    
+                    currentFeedId = id;
+                    document.getElementById('feed-modal-title').textContent = 'Edit RSS Feed';
+                    document.getElementById('feed-id').value = feed.id;
+                    document.getElementById('feed-name').value = feed.name;
+                    document.getElementById('feed-url').value = feed.url;
+                    document.getElementById('feed-pattern').value = feed.pattern;
+                    document.getElementById('feed-interval').value = feed.checkInterval;
+                    document.getElementById('feed-enabled').checked = feed.enabled;
+                    document.getElementById('feed-modal').classList.add('active');
+                })
+                .catch(err => {
+                    console.error('Failed to load feed:', err);
+                    alert('Failed to load feed details');
+                });
+        }
+        
+        function saveFeed() {
+            const feed = {
+                id: parseInt(document.getElementById('feed-id').value) || 0,
+                name: document.getElementById('feed-name').value,
+                url: document.getElementById('feed-url').value,
+                pattern: document.getElementById('feed-pattern').value,
+                checkInterval: parseInt(document.getElementById('feed-interval').value),
+                enabled: document.getElementById('feed-enabled').checked
+            };
+            
+            if (!feed.name || !feed.url || !feed.pattern) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            const endpoint = currentFeedId ? '/api/feeds/update' : '/api/feeds/add';
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(feed)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                closeFeedModal();
+                loadFeeds();
+            })
+            .catch(err => {
+                console.error('Failed to save feed:', err);
+                alert('Failed to save feed');
+            });
+        }
+        
+        function deleteFeed(id, name) {
+            if (!confirm(`Delete RSS feed "${name}"?`)) return;
+            
+            fetch('/api/feeds/delete?id=' + id, {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                loadFeeds();
+            })
+            .catch(err => {
+                console.error('Failed to delete feed:', err);
+                alert('Failed to delete feed');
+            });
+        }
+        
+        function checkFeedNow(id) {
+            fetch('/api/feeds/check?id=' + id, {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                alert('Feed check started. New matches will be added as torrents.');
+                setTimeout(loadFeeds, 2000); // Reload after 2 seconds
+            })
+            .catch(err => {
+                console.error('Failed to check feed:', err);
+                alert('Failed to check feed');
+            });
+        }
+        
+        function closeFeedModal() {
+            document.getElementById('feed-modal').classList.remove('active');
+            currentFeedId = null;
+        }
     </script>
     
     <footer>
