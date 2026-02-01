@@ -115,6 +115,40 @@ type TorrentPeers struct {
 	} `json:"torrents"`
 }
 
+type TrackerStats struct {
+	Announce              string `json:"announce"`
+	AnnounceState         int    `json:"announceState"`
+	DownloadCount         int    `json:"downloadCount"`
+	HasAnnounced          bool   `json:"hasAnnounced"`
+	HasScraped            bool   `json:"hasScraped"`
+	Host                  string `json:"host"`
+	ID                    int    `json:"id"`
+	IsBackup              bool   `json:"isBackup"`
+	LastAnnouncePeerCount int    `json:"lastAnnouncePeerCount"`
+	LastAnnounceResult    string `json:"lastAnnounceResult"`
+	LastAnnounceStartTime int64  `json:"lastAnnounceStartTime"`
+	LastAnnounceSucceeded bool   `json:"lastAnnounceSucceeded"`
+	LastAnnounceTime      int64  `json:"lastAnnounceTime"`
+	LastScrapeResult      string `json:"lastScrapeResult"`
+	LastScrapeStartTime   int64  `json:"lastScrapeStartTime"`
+	LastScrapeSucceeded   bool   `json:"lastScrapeSucceeded"`
+	LastScrapeTime        int64  `json:"lastScrapeTime"`
+	LeecherCount          int    `json:"leecherCount"`
+	NextAnnounceTime      int64  `json:"nextAnnounceTime"`
+	NextScrapeTime        int64  `json:"nextScrapeTime"`
+	Scrape                string `json:"scrape"`
+	ScrapeState           int    `json:"scrapeState"`
+	SeederCount           int    `json:"seederCount"`
+	Tier                  int    `json:"tier"`
+}
+
+type TorrentTrackers struct {
+	Torrents []struct {
+		ID           int            `json:"id"`
+		TrackerStats []TrackerStats `json:"trackerStats"`
+	} `json:"torrents"`
+}
+
 type FreeSpace struct {
 	Path      string `json:"path"`
 	SizeBytes int64  `json:"size-bytes"`
@@ -347,6 +381,31 @@ func (c *TransmissionClient) GetPeers(id int) ([]Peer, error) {
 		return result.Torrents[0].Peers, nil
 	}
 	return []Peer{}, nil
+}
+
+func (c *TransmissionClient) GetTrackers(id int) ([]TrackerStats, error) {
+	req := &RPCRequest{
+		Method: "torrent-get",
+		Arguments: map[string]interface{}{
+			"ids":    []int{id},
+			"fields": []string{"id", "trackerStats"},
+		},
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var result TorrentTrackers
+	if err := json.Unmarshal(resp.Arguments, &result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Torrents) > 0 {
+		return result.Torrents[0].TrackerStats, nil
+	}
+	return []TrackerStats{}, nil
 }
 
 // Template helper functions
@@ -653,6 +712,40 @@ func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleTrackers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	trackers, err := s.client.GetTrackers(id)
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"trackers": trackers,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func main() {
 	config := Config{
 		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://192.168.86.61:9091/transmission/rpc"),
@@ -671,6 +764,7 @@ func main() {
 	http.HandleFunc("/", server.handleIndex)
 	http.HandleFunc("/api/torrents", server.handleAPI)
 	http.HandleFunc("/api/peers", server.handlePeers)
+	http.HandleFunc("/api/trackers", server.handleTrackers)
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
 

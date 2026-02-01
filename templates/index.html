@@ -414,6 +414,41 @@
             display: block;
         }
         
+        .peers-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--bg-secondary);
+        }
+        
+        .peers-tab {
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .peers-tab:hover {
+            color: var(--text-primary);
+        }
+        
+        .peers-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
         .peers-header {
             display: flex;
             justify-content: space-between;
@@ -765,7 +800,16 @@
                         </div>
                     </div>
                     <div class="peers-section" id="peers-{{.ID}}">
-                        <div class="peers-loading">Loading peers...</div>
+                        <div class="peers-tabs">
+                            <button class="peers-tab active" onclick="switchTab({{.ID}}, 'peers', event)">Peers</button>
+                            <button class="peers-tab" onclick="switchTab({{.ID}}, 'trackers', event)">Trackers</button>
+                        </div>
+                        <div class="tab-content active" id="peers-content-{{.ID}}">
+                            <div class="peers-loading">Loading peers...</div>
+                        </div>
+                        <div class="tab-content" id="trackers-content-{{.ID}}">
+                            <div class="peers-loading">Loading trackers...</div>
+                        </div>
                     </div>
                 </div>
                 {{end}}
@@ -869,11 +913,23 @@
                 section.classList.add('active');
                 openPeersId = id;
                 loadPeers(id);
+                loadTrackers(id);
             }
         }
         
+        function switchTab(id, tab, event) {
+            // Update tab buttons
+            const tabs = document.querySelectorAll(`#peers-${id} .peers-tab`);
+            tabs.forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.getElementById(`peers-content-${id}`).classList.toggle('active', tab === 'peers');
+            document.getElementById(`trackers-content-${id}`).classList.toggle('active', tab === 'trackers');
+        }
+        
         function loadPeers(id) {
-            const section = document.getElementById('peers-' + id);
+            const section = document.getElementById('peers-content-' + id);
             section.innerHTML = '<div class="peers-loading">Loading peers...</div>';
             
             fetch('/api/peers?id=' + id)
@@ -935,7 +991,71 @@
                     section.innerHTML = html;
                 })
                 .catch(err => {
-                    section.innerHTML = '<div class="no-peers">Failed to load peers</div>';
+                    section.innerHTML = '<div class="no-peers">Error loading peers</div>';
+                });
+        }
+        
+        function loadTrackers(id) {
+            const section = document.getElementById('trackers-content-' + id);
+            section.innerHTML = '<div class="peers-loading">Loading trackers...</div>';
+            
+            fetch('/api/trackers?id=' + id)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        section.innerHTML = '<div class="no-peers">Error: ' + data.error + '</div>';
+                        return;
+                    }
+                    
+                    const trackers = data.trackers || [];
+                    if (trackers.length === 0) {
+                        section.innerHTML = '<div class="no-peers">No trackers configured</div>';
+                        return;
+                    }
+                    
+                    let html = `
+                        <div class="peers-header">
+                            <h3>Trackers (${trackers.length})</h3>
+                        </div>
+                        <table class="peers-table">
+                            <thead>
+                                <tr>
+                                    <th>Tracker</th>
+                                    <th>Tier</th>
+                                    <th>Status</th>
+                                    <th>Seeders</th>
+                                    <th>Leechers</th>
+                                    <th>Last Announce</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    trackers.forEach(tracker => {
+                        const status = tracker.lastAnnounceSucceeded ? 
+                            '<span style="color: var(--success)">✓ Success</span>' : 
+                            '<span style="color: var(--danger)">✗ ' + (tracker.lastAnnounceResult || 'Failed') + '</span>';
+                        
+                        const lastAnnounce = tracker.lastAnnounceTime > 0 ? 
+                            new Date(tracker.lastAnnounceTime * 1000).toLocaleString() : 'Never';
+                        
+                        html += `
+                            <tr>
+                                <td class="peer-address" title="${escapeHtml(tracker.announce)}">${escapeHtml(tracker.host)}</td>
+                                <td>${tracker.tier}</td>
+                                <td>${status}</td>
+                                <td>${tracker.seederCount >= 0 ? tracker.seederCount : '-'}</td>
+                                <td>${tracker.leecherCount >= 0 ? tracker.leecherCount : '-'}</td>
+                                <td>${lastAnnounce}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    section.innerHTML = html;
+                })
+                .catch(err => {
+                    section.innerHTML = '<div class="no-peers">Error loading trackers</div>';
                 });
         }
         

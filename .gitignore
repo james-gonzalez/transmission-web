@@ -7,6 +7,9 @@
 *.dll
 *.so
 *.dylib
+transmission-web
+transmission-web-*
+!transmission-web-*/ 
 
 # Test binary, built with `go test -c`
 *.test
