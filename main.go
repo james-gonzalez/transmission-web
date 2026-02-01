@@ -566,7 +566,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "index.html", data); err != nil {
-		log.Printf("Template error: %v", err)
+		// Only log errors that aren't client disconnects
+		if !isClientDisconnectError(err) {
+			log.Printf("Template error: %v", err)
+		}
 	}
 }
 
@@ -1032,4 +1035,15 @@ func getEnv(key, defaultVal string) string {
 		return val
 	}
 	return defaultVal
+}
+
+// isClientDisconnectError checks if an error is due to client disconnecting
+func isClientDisconnectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "connection reset by peer") ||
+		strings.Contains(errStr, "write: connection reset")
 }
