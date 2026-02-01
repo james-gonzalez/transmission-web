@@ -60,7 +60,6 @@ type Torrent struct {
 	RateUpload     int64   `json:"rateUpload"`
 	UploadRatio    float64 `json:"uploadRatio"`
 	SizeWhenDone   int64   `json:"sizeWhenDone"`
-	TotalSize      int64   `json:"totalSize"`
 	DownloadedEver int64   `json:"downloadedEver"`
 	UploadedEver   int64   `json:"uploadedEver"`
 	PeersConnected int     `json:"peersConnected"`

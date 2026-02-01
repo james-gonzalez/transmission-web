@@ -777,7 +777,7 @@
                         <div class="torrent-details">
                             <div class="torrent-stats">
                                 <span>Progress: <span class="value">{{formatPercent .PercentDone}}</span></span>
-                                <span>Size: <span class="value">{{formatBytes .TotalSize}}</span></span>
+                                <span>Size: <span class="value">{{formatBytes .SizeWhenDone}}</span></span>
                                 {{if eq .Status 4}}
                                 <span class="speed-stat download">DL: <span class="value">{{formatSpeed .RateDownload}}</span></span>
                                 {{end}}
@@ -1135,7 +1135,7 @@
             const stats = card.querySelector('.torrent-stats');
             if (stats) {
                 let html = `<span>Progress: <span class="value">${formatPercent(torrent.percentDone)}</span></span>`;
-                html += `<span>Size: <span class="value">${formatBytes(torrent.totalSize)}</span></span>`;
+                html += `<span>Size: <span class="value">${formatBytes(torrent.sizeWhenDone)}</span></span>`;
                 
                 if (torrent.status === 4) {
                     html += `<span class="speed-stat download">DL: <span class="value">${formatSpeed(torrent.rateDownload)}</span></span>`;
