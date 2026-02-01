@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"regexp"
 	"time"
 
@@ -56,15 +57,43 @@ func NewFeedManager(dbPath string, client *TransmissionClient) (*FeedManager, er
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
+	// Create custom HTTP client with realistic headers
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &customTransport{
+			Base: http.DefaultTransport,
+		},
+	}
+
+	// Create parser with custom HTTP client
+	parser := gofeed.NewParser()
+	parser.Client = httpClient
+
 	fm := &FeedManager{
 		db:            db,
 		client:        client,
-		parser:        gofeed.NewParser(),
+		parser:        parser,
 		stopCh:        make(chan struct{}),
 		checkInterval: 15 * time.Minute, // default check interval
 	}
 
 	return fm, nil
+}
+
+// customTransport wraps the default transport to add headers
+type customTransport struct {
+	Base http.RoundTripper
+}
+
+func (t *customTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Add realistic browser headers to avoid being blocked
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Connection", "keep-alive")
+
+	return t.Base.RoundTrip(req)
 }
 
 func createTables(db *sql.DB) error {
@@ -161,14 +190,28 @@ func (fm *FeedManager) CheckFeed(feedID int) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// Parse the RSS feed
-	parsedFeed, err := fm.parser.ParseURLWithContext(feed.URL, ctx)
-	if err != nil {
-		fm.updateFeedError(feedID, err.Error())
-		return fmt.Errorf("failed to parse feed: %w", err)
+	// Parse the RSS feed with retry logic
+	log.Printf("Fetching RSS feed: %s", feed.URL)
+	var parsedFeed *gofeed.Feed
+	maxRetries := 3
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		parsedFeed, err = fm.parser.ParseURLWithContext(feed.URL, ctx)
+		if err == nil {
+			break
+		}
+
+		if attempt < maxRetries {
+			log.Printf("Attempt %d/%d failed for feed '%s': %v. Retrying in 2 seconds...", attempt, maxRetries, feed.Name, err)
+			time.Sleep(2 * time.Second)
+		} else {
+			errorMsg := fmt.Sprintf("Failed after %d attempts: %v", maxRetries, err)
+			fm.updateFeedError(feedID, errorMsg)
+			log.Printf("Error fetching RSS feed '%s' after %d attempts: %v", feed.Name, maxRetries, err)
+			return fmt.Errorf("failed to parse feed: %w", err)
+		}
 	}
 
 	// Compile regex pattern
