@@ -1643,7 +1643,13 @@
                     
                     logs.forEach(log => {
                         const checkTime = formatDateTime(new Date(log.checkedAt));
-                        const sampleTitles = log.sampleTitles || [];
+                        // Parse sampleTitles from JSON string
+                        let sampleTitles = [];
+                        try {
+                            sampleTitles = log.sampleTitles ? JSON.parse(log.sampleTitles) : [];
+                        } catch (e) {
+                            console.error('Failed to parse sample titles:', e);
+                        }
                         const titlesHtml = sampleTitles.length > 0 
                             ? sampleTitles.map(t => `<div style="margin: 2px 0; font-size: 0.9em;">${escapeHtml(t)}</div>`).join('')
                             : '<span style="color: var(--text-secondary);">None</span>';
