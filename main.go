@@ -993,7 +993,7 @@ func main() {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	http.HandleFunc("/", server.handleIndex)
