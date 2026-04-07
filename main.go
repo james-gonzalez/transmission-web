@@ -982,9 +982,6 @@ func main() {
 		log.Fatalf("Failed to create feed manager: %v", err)
 	}
 
-	// Start RSS feed polling
-	feedManager.Start()
-
 	server, err := NewServer(client, feedManager)
 	if err != nil {
 		if closeErr := feedManager.Close(); closeErr != nil {
@@ -1024,6 +1021,9 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+
+	// Start RSS feed polling after server is configured and ready to serve
+	feedManager.Start()
 
 	if err := srv.ListenAndServe(); err != nil {
 		if closeErr := feedManager.Close(); closeErr != nil {
