@@ -1,21 +1,13 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Runtime stage - binaries are pre-built by CI and copied in
+FROM alpine:3.23
 
 ARG VERSION=dev
-
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X main.Version=${VERSION}" -o transmission-web .
-
-# Runtime stage
-FROM alpine:3.19
+ARG TARGETARCH=amd64
 
 RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
-COPY --from=builder /app/transmission-web .
+COPY transmission-web-linux-${TARGETARCH} ./transmission-web
 
 # Create directory for database
 RUN mkdir -p /data
