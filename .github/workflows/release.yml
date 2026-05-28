@@ -54,13 +54,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Linux binaries for Docker
-        if: steps.semantic.outputs.new_release_published == 'true'
-        run: |
-          VERSION=${{ steps.semantic.outputs.new_release_version }}
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o transmission-web-linux-amd64 .
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${VERSION}" -o transmission-web-linux-arm64 .
-
       - name: Log in to GitHub Container Registry
         if: steps.semantic.outputs.new_release_published == 'true'
         uses: docker/login-action@v3
