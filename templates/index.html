@@ -11,13 +11,27 @@
             --bg-card: #1f2940;
             --bg-peers: #172033;
             --text-primary: #eee;
-            --text-secondary: #aaa;
+            --text-secondary: #b8b8b8;
             --accent: #4ecca3;
             --accent-hover: #3db88f;
             --danger: #e74c3c;
             --warning: #f39c12;
             --success: #27ae60;
             --downloading: #3498db;
+            
+            /* Spacing scale */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 20px;
+            --space-2xl: 24px;
+            --space-3xl: 32px;
+            
+            /* Transition timing */
+            --transition-fast: 0.15s;
+            --transition-base: 0.2s;
+            --transition-slow: 0.3s;
         }
         
         * {
@@ -144,18 +158,61 @@
             border-color: var(--accent);
         }
         
+        .add-form input[type="text"]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        
+        .add-form input[type="text"].error {
+            border-color: var(--danger);
+        }
+        
         .add-form input[type="text"]::placeholder {
             color: var(--text-secondary);
         }
         
         .btn {
-            padding: 12px 24px;
+            padding: var(--space-md) var(--space-2xl);
             border: none;
             border-radius: 8px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all var(--transition-base);
+        }
+        
+        .btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
         .btn-primary {
@@ -163,7 +220,7 @@
             color: var(--bg-primary);
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: var(--accent-hover);
         }
         
@@ -172,7 +229,7 @@
             color: var(--text-primary);
         }
         
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background: #1e2d4d;
         }
         
@@ -187,7 +244,7 @@
             font-size: 1.4rem;
         }
         
-        .btn-icon:hover {
+        .btn-icon:hover:not(:disabled) {
             background: var(--accent-hover);
         }
         
@@ -202,7 +259,7 @@
             font-size: 1.4rem;
         }
         
-        .btn-file:hover {
+        .btn-file:hover:not(:disabled) {
             background: #1e2d4d;
         }
         
@@ -301,7 +358,7 @@
             height: 100%;
             background: var(--accent);
             border-radius: 4px;
-            transition: width 0.3s;
+            transition: width var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .progress-fill.downloading {
@@ -374,7 +431,17 @@
             border-radius: 6px;
             font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all var(--transition-base);
+        }
+        
+        .torrent-actions button:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: 2px;
+        }
+        
+        .torrent-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .btn-start {
@@ -397,7 +464,7 @@
             color: white;
         }
         
-        .torrent-actions button:hover {
+        .torrent-actions button:hover:not(:disabled) {
             opacity: 0.85;
             transform: scale(1.05);
         }
@@ -416,6 +483,25 @@
             display: block;
         }
         
+        /* Custom scrollbar */
+        .peers-section::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .peers-section::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        
+        .peers-section::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+        
+        .peers-section::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-hover);
+        }
+        
         .peers-tabs {
             display: flex;
             gap: 10px;
@@ -424,18 +510,23 @@
         }
         
         .peers-tab {
-            padding: 8px 16px;
+            padding: var(--space-sm) var(--space-lg);
             background: none;
             border: none;
             color: var(--text-secondary);
             cursor: pointer;
             font-size: 0.9rem;
             border-bottom: 2px solid transparent;
-            transition: all 0.2s;
+            transition: all var(--transition-base);
         }
         
         .peers-tab:hover {
             color: var(--text-primary);
+        }
+        
+        .peers-tab:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
         
         .peers-tab.active {
@@ -577,8 +668,10 @@
         
         .click-hint {
             font-size: 0.75rem;
-            color: var(--text-secondary);
+            color: var(--accent);
             margin-left: 10px;
+            opacity: 0.7;
+            font-weight: 500;
         }
         
         .empty-state {
@@ -588,8 +681,14 @@
         }
         
         .empty-state h2 {
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: var(--text-primary);
+            font-size: 1.5rem;
+        }
+        
+        .empty-state p {
+            font-size: 1rem;
+            line-height: 1.6;
         }
         
         .modal {
@@ -603,18 +702,56 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            backdrop-filter: blur(4px);
         }
         
         .modal.active {
             display: flex;
+            animation: fadeIn var(--transition-fast) ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         
         .modal-content {
             background: var(--bg-card);
-            padding: 30px;
+            padding: var(--space-3xl);
             border-radius: 12px;
             max-width: 400px;
             width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp var(--transition-base) ease-out;
+        }
+        
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .modal-content::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+        
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-hover);
+        }
+        
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .modal-content h3 {
@@ -636,13 +773,16 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            padding: 8px 15px;
+            padding: var(--space-sm) var(--space-lg);
             background: var(--bg-card);
             border-radius: 20px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
+            font-size: 0.85rem;
+            color: var(--accent);
+            font-weight: 500;
             opacity: 0;
-            transition: opacity 0.3s;
+            transition: opacity var(--transition-base);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
         }
         
         .refresh-indicator.active {
@@ -794,7 +934,17 @@
             border-radius: 6px;
             font-size: 0.8rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all var(--transition-base);
+        }
+        
+        .feed-actions button:focus-visible {
+            outline: 2px solid currentColor;
+            outline-offset: 2px;
+        }
+        
+        .feed-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .feed-status {
@@ -947,9 +1097,9 @@
         </div>
     </div>
     
-    <div class="modal" id="remove-modal">
+    <div class="modal" id="remove-modal" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
         <div class="modal-content">
-            <h3>Remove Torrent</h3>
+            <h3 id="remove-modal-title">Remove Torrent</h3>
             <p id="remove-torrent-name"></p>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -959,7 +1109,7 @@
         </div>
     </div>
     
-    <div class="modal" id="feed-modal">
+    <div class="modal" id="feed-modal" role="dialog" aria-modal="true" aria-labelledby="feed-modal-title">
         <div class="modal-content" style="max-width: 600px;">
             <h3 id="feed-modal-title">Add RSS Feed</h3>
             <form id="feed-form" style="display: flex; flex-direction: column; gap: 15px;">
@@ -993,7 +1143,7 @@
         </div>
     </div>
     
-    <div class="modal" id="feed-log-modal">
+    <div class="modal" id="feed-log-modal" role="dialog" aria-modal="true" aria-labelledby="feed-log-title">
         <div class="modal-content" style="max-width: 900px; max-height: 80vh; overflow-y: auto;">
             <h3 id="feed-log-title">Feed Check Log</h3>
             <div id="feed-log-content" style="margin-top: 20px;">
@@ -1012,11 +1162,23 @@
         let openPeersId = null;
         
         function torrentAction(id, action) {
+            // Disable the button to prevent double-clicks
+            const card = document.querySelector(`.torrent-card[data-id="${id}"]`);
+            const buttons = card ? card.querySelectorAll('.torrent-actions button') : [];
+            buttons.forEach(btn => btn.disabled = true);
+            
             fetch('/api/action', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({id: id, action: action})
-            }).then(() => refreshData());
+            })
+            .then(() => refreshData())
+            .finally(() => {
+                // Re-enable buttons after action completes
+                setTimeout(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                }, 500);
+            });
         }
         
         function reannounceAll() {
@@ -1035,9 +1197,15 @@
             const magnetValue = magnetInput.value.trim();
             
             if (!magnetValue) {
-                alert('Please paste a magnet link first');
+                magnetInput.classList.add('error');
+                magnetInput.focus();
+                setTimeout(() => magnetInput.classList.remove('error'), 2000);
                 return;
             }
+            
+            // Disable submit button to prevent double-submission
+            const submitBtn = event.target;
+            submitBtn.disabled = true;
             
             // Submit the form
             document.getElementById('add-form').submit();
@@ -1046,7 +1214,14 @@
         function showRemoveModal(id, name) {
             removeId = id;
             document.getElementById('remove-torrent-name').textContent = name;
-            document.getElementById('remove-modal').classList.add('active');
+            const modal = document.getElementById('remove-modal');
+            modal.classList.add('active');
+            
+            // Focus management for accessibility
+            setTimeout(() => {
+                const firstButton = modal.querySelector('.btn');
+                if (firstButton) firstButton.focus();
+            }, 100);
         }
         
         function closeModal() {
@@ -1295,25 +1470,40 @@
             const card = document.querySelector(`.torrent-card[data-id="${torrent.id}"]`);
             if (!card) return;
             
-            // Update status badge
+            // Update status badge (only if changed)
             const statusBadge = card.querySelector('.torrent-status');
             if (statusBadge) {
-                statusBadge.textContent = getStatusText(torrent.status);
-                statusBadge.className = 'torrent-status ' + getStatusClass(torrent.status);
+                const newStatus = getStatusText(torrent.status);
+                const newClass = 'torrent-status ' + getStatusClass(torrent.status);
+                if (statusBadge.textContent !== newStatus) {
+                    statusBadge.textContent = newStatus;
+                }
+                if (statusBadge.className !== newClass) {
+                    statusBadge.className = newClass;
+                }
             }
             
-            // Update progress bar
+            // Update progress bar (only if changed)
             const progressFill = card.querySelector('.progress-fill');
             if (progressFill) {
-                progressFill.style.width = (torrent.percentDone * 100) + '%';
-                progressFill.className = 'progress-fill';
-                if (torrent.status === 4) progressFill.classList.add('downloading');
-                else if (torrent.percentDone >= 1.0) progressFill.classList.add('complete');
+                const newWidth = (torrent.percentDone * 100) + '%';
+                if (progressFill.style.width !== newWidth) {
+                    progressFill.style.width = newWidth;
+                }
+                
+                let newClass = 'progress-fill';
+                if (torrent.status === 4) newClass += ' downloading';
+                else if (torrent.percentDone >= 1.0) newClass += ' complete';
+                
+                if (progressFill.className !== newClass) {
+                    progressFill.className = newClass;
+                }
             }
             
-            // Update stats
+            // Update stats (only update text content, not full innerHTML)
             const stats = card.querySelector('.torrent-stats');
             if (stats) {
+                // Build new HTML
                 let html = `<span>Progress: <span class="value">${formatPercent(torrent.percentDone)}</span></span>`;
                 html += `<span>Size: <span class="value">${formatBytes(torrent.sizeWhenDone)}</span></span>`;
                 
@@ -1331,22 +1521,30 @@
                     html += `<span>ETA: <span class="value">${formatETA(torrent.eta)}</span></span>`;
                 }
                 
-                stats.innerHTML = html;
+                // Only update if changed (prevents flicker)
+                if (stats.innerHTML !== html) {
+                    stats.innerHTML = html;
+                }
             }
             
-            // Update action buttons
+            // Update action buttons (only if status changed)
             const actions = card.querySelector('.torrent-actions');
             if (actions) {
                 const startStopBtn = actions.querySelector('.btn-start, .btn-stop');
-                if (startStopBtn) {
-                    if (torrent.status === 0) {
-                        startStopBtn.className = 'btn-start';
-                        startStopBtn.textContent = 'Start';
-                        startStopBtn.onclick = () => torrentAction(torrent.id, 'start');
-                    } else {
-                        startStopBtn.className = 'btn-stop';
-                        startStopBtn.textContent = 'Stop';
-                        startStopBtn.onclick = () => torrentAction(torrent.id, 'stop');
+                if (startStopBtn && !startStopBtn.disabled) {
+                    const shouldBeStart = torrent.status === 0;
+                    const isStart = startStopBtn.classList.contains('btn-start');
+                    
+                    if (shouldBeStart !== isStart) {
+                        if (shouldBeStart) {
+                            startStopBtn.className = 'btn-start';
+                            startStopBtn.textContent = 'Start';
+                            startStopBtn.onclick = () => torrentAction(torrent.id, 'start');
+                        } else {
+                            startStopBtn.className = 'btn-stop';
+                            startStopBtn.textContent = 'Stop';
+                            startStopBtn.onclick = () => torrentAction(torrent.id, 'stop');
+                        }
                     }
                 }
             }
@@ -1357,12 +1555,20 @@
             const ulSpeed = document.getElementById('upload-speed');
             const torrentCount = document.getElementById('torrent-count');
             
-            if (dlSpeed) dlSpeed.textContent = formatSpeed(stats.downloadSpeed);
-            if (ulSpeed) ulSpeed.textContent = formatSpeed(stats.uploadSpeed);
-            if (torrentCount) torrentCount.textContent = stats.torrentCount;
+            const newDlSpeed = formatSpeed(stats.downloadSpeed);
+            const newUlSpeed = formatSpeed(stats.uploadSpeed);
+            const newCount = stats.torrentCount.toString();
+            
+            // Only update if changed (prevents flicker)
+            if (dlSpeed && dlSpeed.textContent !== newDlSpeed) dlSpeed.textContent = newDlSpeed;
+            if (ulSpeed && ulSpeed.textContent !== newUlSpeed) ulSpeed.textContent = newUlSpeed;
+            if (torrentCount && torrentCount.textContent !== newCount) torrentCount.textContent = newCount;
         }
         
         function refreshData() {
+            const indicator = document.getElementById('refresh-indicator');
+            indicator.classList.add('active');
+            
             fetch('/api/torrents')
                 .then(r => r.json())
                 .then(data => {
@@ -1385,7 +1591,10 @@
                         loadPeers(openPeersId);
                     }
                 })
-                .catch(err => console.error('Refresh failed:', err));
+                .catch(err => console.error('Refresh failed:', err))
+                .finally(() => {
+                    setTimeout(() => indicator.classList.remove('active'), 300);
+                });
         }
         
         // Auto-refresh every 3 seconds without page reload
@@ -1498,7 +1707,14 @@
             document.getElementById('feed-pattern').value = '.*';
             document.getElementById('feed-interval').value = '15';
             document.getElementById('feed-enabled').checked = true;
-            document.getElementById('feed-modal').classList.add('active');
+            const modal = document.getElementById('feed-modal');
+            modal.classList.add('active');
+            
+            // Focus first input for accessibility
+            setTimeout(() => {
+                const firstInput = document.getElementById('feed-name');
+                if (firstInput) firstInput.focus();
+            }, 100);
         }
         
         function editFeed(id) {
@@ -1519,7 +1735,14 @@
                     document.getElementById('feed-pattern').value = feed.pattern;
                     document.getElementById('feed-interval').value = feed.checkInterval;
                     document.getElementById('feed-enabled').checked = feed.enabled;
-                    document.getElementById('feed-modal').classList.add('active');
+                    const modal = document.getElementById('feed-modal');
+                    modal.classList.add('active');
+                    
+                    // Focus first input for accessibility
+                    setTimeout(() => {
+                        const firstInput = document.getElementById('feed-name');
+                        if (firstInput) firstInput.focus();
+                    }, 100);
                 })
                 .catch(err => {
                     console.error('Failed to load feed:', err);
@@ -1585,6 +1808,14 @@
         }
         
         function checkFeedNow(id) {
+            const feedCard = document.querySelector(`.feed-card[data-feed-id="${id}"]`);
+            const checkBtn = feedCard ? feedCard.querySelector('.btn-start') : null;
+            
+            if (checkBtn) {
+                checkBtn.disabled = true;
+                checkBtn.classList.add('loading');
+            }
+            
             fetch('/api/feeds/check?id=' + id, {
                 method: 'POST'
             })
@@ -1594,12 +1825,17 @@
                     alert('Error: ' + data.error);
                     return;
                 }
-                alert('Feed check started. New matches will be added as torrents.');
                 setTimeout(loadFeeds, 2000); // Reload after 2 seconds
             })
             .catch(err => {
                 console.error('Failed to check feed:', err);
                 alert('Failed to check feed');
+            })
+            .finally(() => {
+                if (checkBtn) {
+                    checkBtn.disabled = false;
+                    checkBtn.classList.remove('loading');
+                }
             });
         }
         
