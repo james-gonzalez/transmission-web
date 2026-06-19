@@ -149,6 +149,19 @@ type TorrentTrackers struct {
 	} `json:"torrents"`
 }
 
+type File struct {
+	Name           string `json:"name"`
+	Length         int64  `json:"length"`
+	BytesCompleted int64  `json:"bytesCompleted"`
+}
+
+type TorrentFiles struct {
+	Torrents []struct {
+		ID    int    `json:"id"`
+		Files []File `json:"files"`
+	} `json:"torrents"`
+}
+
 type FreeSpace struct {
 	Path      string `json:"path"`
 	SizeBytes int64  `json:"size-bytes"`
@@ -431,6 +444,31 @@ func (c *TransmissionClient) GetTrackers(id int) ([]TrackerStats, error) {
 		return result.Torrents[0].TrackerStats, nil
 	}
 	return []TrackerStats{}, nil
+}
+
+func (c *TransmissionClient) GetFiles(id int) ([]File, error) {
+	req := &RPCRequest{
+		Method: "torrent-get",
+		Arguments: map[string]interface{}{
+			"ids":    []int{id},
+			"fields": []string{"id", "files"},
+		},
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var result TorrentFiles
+	if err := json.Unmarshal(resp.Arguments, &result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Torrents) > 0 {
+		return result.Torrents[0].Files, nil
+	}
+	return []File{}, nil
 }
 
 // Template helper functions
@@ -782,6 +820,40 @@ func (s *Server) handleTrackers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
+			log.Printf("Failed to encode error response: %v", err)
+		}
+		return
+	}
+
+	var id int
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	files, err := s.client.GetFiles(id)
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"files": files,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func (s *Server) handleGetFeeds(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1028,6 +1100,7 @@ func main() {
 	http.HandleFunc("/api/torrents", server.handleAPI)
 	http.HandleFunc("/api/peers", server.handlePeers)
 	http.HandleFunc("/api/trackers", server.handleTrackers)
+	http.HandleFunc("/api/files", server.handleFiles)
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
 

@@ -603,6 +603,11 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
+        .file-name {
+            word-break: break-all;
+            max-width: 480px;
+        }
         
         .peer-flags {
             font-family: monospace;
@@ -1079,12 +1084,16 @@
                         <div class="peers-tabs">
                             <button class="peers-tab active" onclick="switchTab({{.ID}}, 'peers', event)">Peers</button>
                             <button class="peers-tab" onclick="switchTab({{.ID}}, 'trackers', event)">Trackers</button>
+                            <button class="peers-tab" onclick="switchTab({{.ID}}, 'files', event)">Files</button>
                         </div>
                         <div class="tab-content active" id="peers-content-{{.ID}}">
                             <div class="peers-loading">Loading peers...</div>
                         </div>
                         <div class="tab-content" id="trackers-content-{{.ID}}">
                             <div class="peers-loading">Loading trackers...</div>
+                        </div>
+                        <div class="tab-content" id="files-content-{{.ID}}">
+                            <div class="peers-loading">Loading files...</div>
                         </div>
                     </div>
                 </div>
@@ -1261,6 +1270,7 @@
                 openPeersId = id;
                 loadPeers(id);
                 loadTrackers(id);
+                loadFiles(id);
             }
         }
         
@@ -1273,6 +1283,7 @@
             // Update tab content
             document.getElementById(`peers-content-${id}`).classList.toggle('active', tab === 'peers');
             document.getElementById(`trackers-content-${id}`).classList.toggle('active', tab === 'trackers');
+            document.getElementById(`files-content-${id}`).classList.toggle('active', tab === 'files');
         }
         
         function loadPeers(id) {
@@ -1405,7 +1416,64 @@
                     section.innerHTML = '<div class="no-peers">Error loading trackers</div>';
                 });
         }
-        
+
+        function loadFiles(id) {
+            const section = document.getElementById('files-content-' + id);
+            section.innerHTML = '<div class="peers-loading">Loading files...</div>';
+
+            fetch('/api/files?id=' + id)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        section.innerHTML = '<div class="no-peers">Error: ' + data.error + '</div>';
+                        return;
+                    }
+
+                    const files = data.files || [];
+                    if (files.length === 0) {
+                        section.innerHTML = '<div class="no-peers">No files</div>';
+                        return;
+                    }
+
+                    let html = `
+                        <div class="peers-header">
+                            <h3>Files (${files.length})</h3>
+                        </div>
+                        <table class="peers-table">
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Size</th>
+                                    <th>Progress</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    files.forEach(file => {
+                        const pct = file.length > 0 ? (file.bytesCompleted / file.length * 100) : 0;
+                        html += `
+                            <tr>
+                                <td class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</td>
+                                <td class="peer-speed">${formatBytes(file.length)}</td>
+                                <td class="peer-progress">
+                                    <div class="peer-progress-bar">
+                                        <div class="peer-progress-fill" style="width: ${pct.toFixed(1)}%"></div>
+                                    </div>
+                                    ${pct.toFixed(0)}%
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    html += '</tbody></table>';
+                    section.innerHTML = html;
+                })
+                .catch(err => {
+                    section.innerHTML = '<div class="no-peers">Error loading files</div>';
+                });
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
