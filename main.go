@@ -74,15 +74,28 @@ type TorrentList struct {
 }
 
 type SessionStats struct {
-	ActiveTorrentCount int   `json:"activeTorrentCount"`
-	PausedTorrentCount int   `json:"pausedTorrentCount"`
-	TorrentCount       int   `json:"torrentCount"`
-	DownloadSpeed      int64 `json:"downloadSpeed"`
-	UploadSpeed        int64 `json:"uploadSpeed"`
-	CumulativeStats    struct {
-		UploadedBytes   int64 `json:"uploadedBytes"`
-		DownloadedBytes int64 `json:"downloadedBytes"`
-	} `json:"cumulative-stats"`
+	ActiveTorrentCount int         `json:"activeTorrentCount"`
+	PausedTorrentCount int         `json:"pausedTorrentCount"`
+	TorrentCount       int         `json:"torrentCount"`
+	DownloadSpeed      int64       `json:"downloadSpeed"`
+	UploadSpeed        int64       `json:"uploadSpeed"`
+	CurrentStats       StatsDetail `json:"current-stats"`
+	CumulativeStats    StatsDetail `json:"cumulative-stats"`
+}
+
+type StatsDetail struct {
+	UploadedBytes   int64 `json:"uploadedBytes"`
+	DownloadedBytes int64 `json:"downloadedBytes"`
+	FilesAdded      int   `json:"filesAdded"`
+	SessionCount    int   `json:"sessionCount"`
+	SecondsActive   int   `json:"secondsActive"`
+}
+
+type SessionInfo struct {
+	Version     string `json:"version"`
+	RPCVersion  int    `json:"rpc-version"`
+	DownloadDir string `json:"download-dir"`
+	PeerPort    int    `json:"peer-port"`
 }
 
 type PortTest struct {
@@ -261,6 +274,27 @@ func (c *TransmissionClient) GetSessionStats() (*SessionStats, error) {
 	}
 
 	return &stats, nil
+}
+
+// GetSessionInfo returns daemon-level info (version, RPC version, download dir,
+// peer port) from session-get for the stats panel.
+func (c *TransmissionClient) GetSessionInfo() (*SessionInfo, error) {
+	req := &RPCRequest{
+		Method: "session-get",
+		Arguments: map[string]interface{}{
+			"fields": []string{"version", "rpc-version", "download-dir", "peer-port"},
+		},
+	}
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var info SessionInfo
+	if err := json.Unmarshal(resp.Arguments, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
 }
 
 func (c *TransmissionClient) TestPort() (bool, error) {
@@ -1000,6 +1034,32 @@ func (s *Server) handleSetFiles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleStats returns a full daemon-wide statistics breakdown (session-stats +
+// session-get) for the stats panel.
+func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	stats, err := s.client.GetSessionStats()
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+
+	info, err := s.client.GetSessionInfo()
+	if err != nil {
+		log.Printf("stats: session info: %v", err) // non-fatal — still return transfer stats
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"stats": stats,
+		"info":  info,
+	}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func (s *Server) handleGetFeeds(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1248,6 +1308,7 @@ func main() {
 	http.HandleFunc("/api/trackers", server.handleTrackers)
 	http.HandleFunc("/api/files", server.handleFiles)
 	http.HandleFunc("/api/files/set", server.handleSetFiles)
+	http.HandleFunc("/api/stats", server.handleStats)
 	http.HandleFunc("/api/stream", server.handleStream)
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
