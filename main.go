@@ -669,6 +669,55 @@ func (s *Server) handleAPI(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// handleStream pushes torrent + session state to the client over Server-Sent
+// Events, once a second, so the UI updates live instead of polling.
+func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // don't let a proxy buffer the stream
+
+	// The server sets a 15s WriteTimeout for normal handlers; clear the write
+	// deadline on this connection so the long-lived stream isn't cut off.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		log.Printf("stream: could not clear write deadline: %v", err)
+	}
+
+	ctx := r.Context()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		torrents, err := s.client.GetTorrents()
+		if err != nil {
+			log.Printf("stream: get torrents: %v", err)
+		} else if stats, statsErr := s.client.GetSessionStats(); statsErr != nil {
+			log.Printf("stream: get session stats: %v", statsErr)
+		} else if payload, mErr := json.Marshal(map[string]interface{}{
+			"torrents": torrents,
+			"stats":    stats,
+		}); mErr != nil {
+			log.Printf("stream: marshal payload: %v", mErr)
+		} else if _, wErr := fmt.Fprintf(w, "data: %s\n\n", payload); wErr != nil {
+			return // client disconnected
+		} else {
+			flusher.Flush()
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1101,6 +1150,7 @@ func main() {
 	http.HandleFunc("/api/peers", server.handlePeers)
 	http.HandleFunc("/api/trackers", server.handleTrackers)
 	http.HandleFunc("/api/files", server.handleFiles)
+	http.HandleFunc("/api/stream", server.handleStream)
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
 

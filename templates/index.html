@@ -791,8 +791,35 @@
             pointer-events: none;
         }
         
-        .refresh-indicator.active {
+        .refresh-indicator.active,
+        .refresh-indicator.live,
+        .refresh-indicator.offline {
             opacity: 1;
+        }
+
+        .refresh-indicator.offline {
+            color: var(--text-secondary);
+        }
+
+        .live-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            margin-right: 7px;
+            vertical-align: middle;
+            animation: live-pulse 2s ease-in-out infinite;
+        }
+
+        .refresh-indicator.offline .live-dot {
+            background: var(--text-secondary);
+            animation: none;
+        }
+
+        @keyframes live-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
         }
         
         @media (max-width: 768px) {
@@ -1165,7 +1192,7 @@
         </div>
     </div>
     
-    <div class="refresh-indicator" id="refresh-indicator">Refreshing...</div>
+    <div class="refresh-indicator" id="refresh-indicator"><span class="live-dot"></span><span id="live-text">Live</span></div>
     
     <script>
         let removeId = null;
@@ -1635,40 +1662,53 @@
             if (torrentCount && torrentCount.textContent !== newCount) torrentCount.textContent = newCount;
         }
         
+        // One-shot refresh for immediate feedback after an action (add/remove/
+        // toggle). Continuous updates come from the SSE stream below.
         function refreshData() {
-            const indicator = document.getElementById('refresh-indicator');
-            indicator.classList.add('active');
-            
             fetch('/api/torrents')
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) return;
-                    
-                    // Update global stats
-                    if (data.stats) {
-                        updateGlobalStats(data.stats);
-                    }
-                    
-                    // Update each torrent card
-                    if (data.torrents) {
-                        data.torrents.forEach(torrent => {
-                            updateTorrentCard(torrent);
-                        });
-                    }
-                    
-                    // Refresh peers panel if open
-                    if (openPeersId !== null) {
-                        loadPeers(openPeersId);
-                    }
+                    if (data.stats) updateGlobalStats(data.stats);
+                    if (data.torrents) data.torrents.forEach(updateTorrentCard);
+                    if (openPeersId !== null) loadPeers(openPeersId);
                 })
-                .catch(err => console.error('Refresh failed:', err))
-                .finally(() => {
-                    setTimeout(() => indicator.classList.remove('active'), 300);
-                });
+                .catch(err => console.error('Refresh failed:', err));
         }
         
-        // Auto-refresh every 3 seconds without page reload
-        setInterval(refreshData, 3000);
+        // Live updates via Server-Sent Events (replaces interval polling).
+        let streamTick = 0;
+        function startStream() {
+            const indicator = document.getElementById('refresh-indicator');
+            const liveText = document.getElementById('live-text');
+            const es = new EventSource('/api/stream');
+
+            es.addEventListener('open', () => {
+                indicator.classList.add('live');
+                indicator.classList.remove('offline');
+                if (liveText) liveText.textContent = 'Live';
+            });
+
+            es.onmessage = (e) => {
+                let data;
+                try { data = JSON.parse(e.data); } catch (err) { return; }
+                if (data.stats) updateGlobalStats(data.stats);
+                if (data.torrents) data.torrents.forEach(updateTorrentCard);
+                // Reload the open peers panel at ~3s cadence to avoid flicker.
+                if (openPeersId !== null && streamTick % 3 === 0) {
+                    loadPeers(openPeersId);
+                }
+                streamTick++;
+            };
+
+            es.onerror = () => {
+                indicator.classList.add('offline');
+                indicator.classList.remove('live');
+                if (liveText) liveText.textContent = 'Reconnecting…';
+                // EventSource reconnects on its own.
+            };
+        }
+        startStream();
         
         // Close modal on escape key
         document.addEventListener('keydown', (e) => {
