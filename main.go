@@ -290,6 +290,31 @@ func (c *TransmissionClient) GetFreeSpace(path string) (*FreeSpace, error) {
 	return &fs, nil
 }
 
+// GetDownloadDir asks the daemon for its configured download directory, so we
+// report free space for wherever Transmission actually downloads rather than a
+// hardcoded path (which drifts when the container's mounts change).
+func (c *TransmissionClient) GetDownloadDir() (string, error) {
+	req := &RPCRequest{
+		Method: "session-get",
+		Arguments: map[string]interface{}{
+			"fields": []string{"download-dir"},
+		},
+	}
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return "", err
+	}
+
+	var session struct {
+		DownloadDir string `json:"download-dir"`
+	}
+	if err := json.Unmarshal(resp.Arguments, &session); err != nil {
+		return "", err
+	}
+
+	return session.DownloadDir, nil
+}
+
 func (c *TransmissionClient) AddTorrent(magnetOrURL string, torrentData []byte) error {
 	args := make(map[string]interface{})
 
@@ -554,7 +579,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	portOpen, _ := s.client.TestPort()
-	freeSpace, _ := s.client.GetFreeSpace("/data/transmission")
+
+	var freeSpace *FreeSpace
+	if downloadDir, err := s.client.GetDownloadDir(); err != nil {
+		log.Printf("⚠️  Could not determine download dir: %v", err)
+	} else if freeSpace, err = s.client.GetFreeSpace(downloadDir); err != nil {
+		log.Printf("⚠️  Could not get free space for %s: %v", downloadDir, err)
+	}
 
 	data := map[string]interface{}{
 		"Torrents":  torrents,
