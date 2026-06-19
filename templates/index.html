@@ -608,6 +608,30 @@
             word-break: break-all;
             max-width: 480px;
         }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        .file-check {
+            width: 32px;
+            text-align: center;
+        }
+
+        .file-check input {
+            cursor: pointer;
+        }
+
+        tr.file-unwanted {
+            opacity: 0.5;
+        }
         
         .peer-flags {
             font-family: monospace;
@@ -1465,13 +1489,19 @@
                     let html = `
                         <div class="peers-header">
                             <h3>Files (${files.length})</h3>
+                            <div class="file-actions">
+                                <button class="btn btn-sm btn-start" onclick="applyFileSelection(${id}, true)">Download</button>
+                                <button class="btn btn-sm btn-stop" onclick="applyFileSelection(${id}, false)">Don't download</button>
+                            </div>
                         </div>
                         <table class="peers-table">
                             <thead>
                                 <tr>
+                                    <th class="file-check"><input type="checkbox" onchange="toggleAllFiles(${id}, this.checked)" title="Select all"></th>
                                     <th>File</th>
                                     <th>Size</th>
                                     <th>Progress</th>
+                                    <th>Download?</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1480,7 +1510,8 @@
                     files.forEach(file => {
                         const pct = file.length > 0 ? (file.bytesCompleted / file.length * 100) : 0;
                         html += `
-                            <tr>
+                            <tr class="${file.wanted ? '' : 'file-unwanted'}">
+                                <td class="file-check"><input type="checkbox" class="file-select-${id}" value="${file.index}"></td>
                                 <td class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</td>
                                 <td class="peer-speed">${formatBytes(file.length)}</td>
                                 <td class="peer-progress">
@@ -1489,6 +1520,7 @@
                                     </div>
                                     ${pct.toFixed(0)}%
                                 </td>
+                                <td>${file.wanted ? '<span style="color: var(--success)">✓ Yes</span>' : '<span style="color: var(--text-secondary)">Skipped</span>'}</td>
                             </tr>
                         `;
                     });
@@ -1499,6 +1531,32 @@
                 .catch(err => {
                     section.innerHTML = '<div class="no-peers">Error loading files</div>';
                 });
+        }
+
+        function toggleAllFiles(id, checked) {
+            document.querySelectorAll('.file-select-' + id).forEach(cb => { cb.checked = checked; });
+        }
+
+        function applyFileSelection(id, wanted) {
+            const indices = Array.from(document.querySelectorAll('.file-select-' + id + ':checked'))
+                .map(cb => parseInt(cb.value, 10));
+            if (indices.length === 0) {
+                return;
+            }
+            fetch('/api/files/set', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, indices: indices, wanted: wanted }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    loadFiles(id);
+                })
+                .catch(err => console.error('set files failed:', err));
         }
 
         function escapeHtml(text) {

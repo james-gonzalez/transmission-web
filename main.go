@@ -150,16 +150,11 @@ type TorrentTrackers struct {
 }
 
 type File struct {
+	Index          int    `json:"index"`
 	Name           string `json:"name"`
 	Length         int64  `json:"length"`
 	BytesCompleted int64  `json:"bytesCompleted"`
-}
-
-type TorrentFiles struct {
-	Torrents []struct {
-		ID    int    `json:"id"`
-		Files []File `json:"files"`
-	} `json:"torrents"`
+	Wanted         bool   `json:"wanted"`
 }
 
 type FreeSpace struct {
@@ -451,7 +446,7 @@ func (c *TransmissionClient) GetFiles(id int) ([]File, error) {
 		Method: "torrent-get",
 		Arguments: map[string]interface{}{
 			"ids":    []int{id},
-			"fields": []string{"id", "files"},
+			"fields": []string{"id", "files", "fileStats"},
 		},
 	}
 
@@ -460,15 +455,62 @@ func (c *TransmissionClient) GetFiles(id int) ([]File, error) {
 		return nil, err
 	}
 
-	var result TorrentFiles
+	// files carries name/size/progress; fileStats (same order) carries the
+	// wanted flag — zip them by index so the UI knows what's set to download.
+	var result struct {
+		Torrents []struct {
+			Files []struct {
+				Name           string `json:"name"`
+				Length         int64  `json:"length"`
+				BytesCompleted int64  `json:"bytesCompleted"`
+			} `json:"files"`
+			FileStats []struct {
+				Wanted bool `json:"wanted"`
+			} `json:"fileStats"`
+		} `json:"torrents"`
+	}
 	if err := json.Unmarshal(resp.Arguments, &result); err != nil {
 		return nil, err
 	}
 
-	if len(result.Torrents) > 0 {
-		return result.Torrents[0].Files, nil
+	if len(result.Torrents) == 0 {
+		return []File{}, nil
 	}
-	return []File{}, nil
+
+	t := result.Torrents[0]
+	files := make([]File, len(t.Files))
+	for i, f := range t.Files {
+		wanted := true
+		if i < len(t.FileStats) {
+			wanted = t.FileStats[i].Wanted
+		}
+		files[i] = File{
+			Index:          i,
+			Name:           f.Name,
+			Length:         f.Length,
+			BytesCompleted: f.BytesCompleted,
+			Wanted:         wanted,
+		}
+	}
+	return files, nil
+}
+
+// SetFilesWanted marks the given file indices as wanted (download) or unwanted
+// (skip) on a torrent via torrent-set.
+func (c *TransmissionClient) SetFilesWanted(id int, indices []int, wanted bool) error {
+	field := "files-wanted"
+	if !wanted {
+		field = "files-unwanted"
+	}
+	req := &RPCRequest{
+		Method: "torrent-set",
+		Arguments: map[string]interface{}{
+			"ids": []int{id},
+			field: indices,
+		},
+	}
+	_, err := c.doRequest(req)
+	return err
 }
 
 // Template helper functions
@@ -926,6 +968,38 @@ func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleSetFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID      int   `json:"id"`
+		Indices []int `json:"indices"`
+		Wanted  bool  `json:"wanted"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(req.Indices) == 0 {
+		http.Error(w, "no files selected", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := s.client.SetFilesWanted(req.ID, req.Indices, req.Wanted); err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			log.Printf("Failed to encode error response: %v", encErr)
+		}
+		return
+	}
+	if err := json.NewEncoder(w).Encode(map[string]bool{"ok": true}); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
 func (s *Server) handleGetFeeds(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1173,6 +1247,7 @@ func main() {
 	http.HandleFunc("/api/peers", server.handlePeers)
 	http.HandleFunc("/api/trackers", server.handleTrackers)
 	http.HandleFunc("/api/files", server.handleFiles)
+	http.HandleFunc("/api/files/set", server.handleSetFiles)
 	http.HandleFunc("/api/stream", server.handleStream)
 	http.HandleFunc("/api/add", server.handleAdd)
 	http.HandleFunc("/api/action", server.handleAction)
