@@ -1042,8 +1042,8 @@
                 <input type="text" name="magnet" id="magnet-input" placeholder="Paste magnet link or torrent URL...">
                 <button type="button" class="btn btn-icon" onclick="submitMagnet()" title="Add magnet link">🧲</button>
                 <div class="file-input-wrapper">
-                    <button type="button" class="btn btn-file" onclick="document.querySelector('input[name=torrent-file]').click()" title="Upload .torrent file">📁</button>
-                    <input type="file" name="torrent-file" id="torrent-file" accept=".torrent" onchange="this.form.submit()" style="display: none;">
+                    <button type="button" class="btn btn-file" onclick="document.querySelector('input[name=torrent-file]').click()" title="Upload .torrent file(s)">📁</button>
+                    <input type="file" name="torrent-file" id="torrent-file" accept=".torrent" multiple onchange="this.form.submit()" style="display: none;">
                 </div>
                 <button type="button" class="btn btn-reannounce" onclick="reannounceAll()">Reannounce All</button>
                 <button type="button" class="btn btn-secondary" onclick="toggleRSSFeeds()" style="margin-left: auto;">📡 RSS Feeds</button>

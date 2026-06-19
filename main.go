@@ -724,19 +724,42 @@ func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for file upload
-	file, _, err := r.FormFile("torrent-file")
-	if err == nil {
-		defer file.Close()
-		data, err := io.ReadAll(file)
-		if err != nil {
-			http.Error(w, "Failed to read file", http.StatusBadRequest)
+	// Parse the form so we can read every uploaded .torrent file (the picker
+	// allows selecting more than one); up to 32 MiB is buffered in memory.
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	// Check for one or more uploaded .torrent files.
+	if r.MultipartForm != nil && len(r.MultipartForm.File["torrent-file"]) > 0 {
+		var added, failed int
+		for _, fh := range r.MultipartForm.File["torrent-file"] {
+			data, err := func() ([]byte, error) {
+				f, err := fh.Open()
+				if err != nil {
+					return nil, err
+				}
+				defer f.Close()
+				return io.ReadAll(f)
+			}()
+			if err != nil {
+				log.Printf("add: read %q: %v", fh.Filename, err)
+				failed++
+				continue
+			}
+			if err := s.client.AddTorrent("", data); err != nil {
+				log.Printf("add: %q: %v", fh.Filename, err)
+				failed++
+				continue
+			}
+			added++
+		}
+		if added == 0 {
+			http.Error(w, "Failed to add any torrent files", http.StatusInternalServerError)
 			return
 		}
-		if err := s.client.AddTorrent("", data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		log.Printf("add: %d torrent file(s) added, %d failed", added, failed)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
