@@ -40,5 +40,9 @@ k8s/secret.yaml
 *.db-wal
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# AI Tools
+graphify-out/
+.claude/
