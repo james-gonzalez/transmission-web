@@ -1074,7 +1074,7 @@
                 </div>
                 <div class="stat">
                     <span class="stat-label">Ratio:</span>
-                    <span class="stat-value" id="total-ratio">{{if .Stats.CumulativeStats.DownloadedBytes}}{{formatRatio (divf (float64 .Stats.CumulativeStats.UploadedBytes) (float64 .Stats.CumulativeStats.DownloadedBytes))}}{{else}}0.00{{end}}</span>
+                    <span class="stat-value" id="total-ratio" title="Aggregate ratio across loaded torrents (uploaded ÷ downloaded). All-time daemon totals are in the 📊 Stats panel.">{{formatRatio .LibraryRatio}}</span>
                 </div>
                 {{if .FreeSpace}}
                 <div class="stat">
@@ -1762,6 +1762,18 @@
             if (ulSpeed && ulSpeed.textContent !== newUlSpeed) ulSpeed.textContent = newUlSpeed;
             if (torrentCount && torrentCount.textContent !== newCount) torrentCount.textContent = newCount;
         }
+
+        // Aggregate ratio across the loaded torrents (sum uploaded / sum
+        // downloaded) — mirrors libraryRatio() on the server. Keeps the header
+        // in sync with the live torrent list rather than daemon lifetime totals.
+        function updateLibraryRatio(torrents) {
+            const el = document.getElementById('total-ratio');
+            if (!el || !torrents) return;
+            let up = 0, down = 0;
+            for (const t of torrents) { up += t.uploadedEver || 0; down += t.downloadedEver || 0; }
+            const newRatio = down > 0 ? formatRatio(up / down) : '0.00';
+            if (el.textContent !== newRatio) el.textContent = newRatio;
+        }
         
         // One-shot refresh for immediate feedback after an action (add/remove/
         // toggle). Continuous updates come from the SSE stream below.
@@ -1771,7 +1783,7 @@
                 .then(data => {
                     if (data.error) return;
                     if (data.stats) updateGlobalStats(data.stats);
-                    if (data.torrents) data.torrents.forEach(updateTorrentCard);
+                    if (data.torrents) { data.torrents.forEach(updateTorrentCard); updateLibraryRatio(data.torrents); }
                     if (openPeersId !== null) loadPeers(openPeersId);
                 })
                 .catch(err => console.error('Refresh failed:', err));
@@ -1794,7 +1806,7 @@
                 let data;
                 try { data = JSON.parse(e.data); } catch (err) { return; }
                 if (data.stats) updateGlobalStats(data.stats);
-                if (data.torrents) data.torrents.forEach(updateTorrentCard);
+                if (data.torrents) { data.torrents.forEach(updateTorrentCard); updateLibraryRatio(data.torrents); }
                 // Reload the open peers panel at ~3s cadence to avoid flicker.
                 if (openPeersId !== null && streamTick % 3 === 0) {
                     loadPeers(openPeersId);

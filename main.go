@@ -73,6 +73,22 @@ type TorrentList struct {
 	Torrents []Torrent `json:"torrents"`
 }
 
+// libraryRatio is the aggregate seed ratio across the currently loaded
+// torrents (sum of uploadedEver / sum of downloadedEver). Unlike the daemon's
+// cumulative-stats it reflects only what's loaded right now, not torrents that
+// have since been removed. Returns 0 when nothing has been downloaded yet.
+func libraryRatio(torrents []Torrent) float64 {
+	var up, down int64
+	for _, t := range torrents {
+		up += t.UploadedEver
+		down += t.DownloadedEver
+	}
+	if down == 0 {
+		return 0
+	}
+	return float64(up) / float64(down)
+}
+
 type SessionStats struct {
 	ActiveTorrentCount int         `json:"activeTorrentCount"`
 	PausedTorrentCount int         `json:"pausedTorrentCount"`
@@ -702,11 +718,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Torrents":  torrents,
-		"Stats":     stats,
-		"PortOpen":  portOpen,
-		"FreeSpace": freeSpace,
-		"Version":   Version,
+		"Torrents":     torrents,
+		"Stats":        stats,
+		"PortOpen":     portOpen,
+		"FreeSpace":    freeSpace,
+		"LibraryRatio": libraryRatio(torrents),
+		"Version":      Version,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
