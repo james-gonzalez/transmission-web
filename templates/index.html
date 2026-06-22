@@ -1133,6 +1133,72 @@
         .filter-search::placeholder {
             color: var(--text-secondary);
         }
+
+        /* Ratio editor */
+        .btn-ratio {
+            background: rgba(78, 204, 163, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(78, 204, 163, 0.25);
+        }
+
+        .btn-ratio:hover:not(:disabled) {
+            background: rgba(78, 204, 163, 0.22);
+        }
+
+        .ratio-editor {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding: 7px 0 2px;
+            border-top: 1px solid var(--bg-secondary);
+            flex-wrap: wrap;
+        }
+
+        .ratio-editor input,
+        .ratio-editor select {
+            padding: 5px 10px;
+            border: 1px solid var(--bg-secondary);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.8rem;
+        }
+
+        .ratio-editor input {
+            width: 90px;
+        }
+
+        .ratio-editor input:focus,
+        .ratio-editor select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .ratio-save {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity var(--transition-base);
+        }
+
+        .ratio-cancel {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: opacity var(--transition-base);
+        }
+
+        .ratio-save:hover, .ratio-cancel:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -1218,7 +1284,7 @@
         <div class="torrent-list" id="torrent-list">
             {{if .Torrents}}
                 {{range .Torrents}}
-                <div class="torrent-card" data-id="{{.ID}}" data-status="{{.Status}}" data-name="{{.Name}}">
+                <div class="torrent-card" data-id="{{.ID}}" data-status="{{.Status}}" data-name="{{.Name}}" data-ratio-limit="{{.SeedRatioLimit}}" data-ratio-mode="{{.SeedRatioMode}}">
                     <div class="torrent-main" onclick="togglePeers({{.ID}}, event)">
                         <div class="torrent-header">
                             <span class="torrent-name">{{.Name}}<span class="click-hint">(click for peers)</span></span>
@@ -1238,7 +1304,8 @@
                                 {{if or (eq .Status 4) (eq .Status 6)}}
                                 <span class="speed-stat upload">UL: <span class="value">{{formatSpeed .RateUpload}}</span></span>
                                 {{end}}
-                                <span>Ratio: <span class="value">{{formatRatio .UploadRatio}}</span></span>
+                                 <span>Ratio: <span class="value">{{formatRatio .UploadRatio}}</span></span>
+                                 <span>Limit: <span class="value ratio-limit-val">{{if eq .SeedRatioMode 1}}{{printf "%.2f" .SeedRatioLimit}}{{else}}∞{{end}}</span></span>
                                 <span>Peers: <span class="value">{{.PeersConnected}}</span></span>
                                 {{if and (lt .PercentDone 1.0) (gt .ETA 0)}}
                                 <span>ETA: <span class="value">{{formatETA .ETA}}</span></span>
@@ -1250,9 +1317,20 @@
                                 {{else}}
                                 <button class="btn-stop" onclick="torrentAction({{.ID}}, 'stop')">Stop</button>
                                 {{end}}
-                                <button class="btn-reannounce" onclick="torrentAction({{.ID}}, 'reannounce')">Reannounce</button>
-                                <button class="btn-remove" onclick="showRemoveModal({{.ID}}, '{{.Name}}')">Remove</button>
+                                 <button class="btn-reannounce" onclick="torrentAction({{.ID}}, 'reannounce')">Reannounce</button>
+                                 <button class="btn-ratio" onclick="toggleRatioEditor({{.ID}}, event)">Set Ratio</button>
+                                 <button class="btn-remove" onclick="showRemoveModal({{.ID}}, '{{.Name}}')">Remove</button>
                             </div>
+                        </div>
+                        <div class="ratio-editor" id="ratio-editor-{{.ID}}" onclick="event.stopPropagation()">
+                            <input type="number" class="ratio-input" step="0.1" min="0" placeholder="e.g. 2.0" value="{{if eq .SeedRatioMode 1}}{{printf "%.1f" .SeedRatioLimit}}{{end}}">
+                            <select class="ratio-mode-select">
+                                <option value="1" {{if eq .SeedRatioMode 1}}selected{{end}}>Stop at ratio</option>
+                                <option value="2" {{if eq .SeedRatioMode 2}}selected{{end}}>Seed forever</option>
+                                <option value="0" {{if eq .SeedRatioMode 0}}selected{{end}}>Use global</option>
+                            </select>
+                            <button class="ratio-save" onclick="saveRatio({{.ID}}, event)">Save</button>
+                            <button class="ratio-cancel" onclick="toggleRatioEditor({{.ID}}, event)">×</button>
                         </div>
                     </div>
                     <div class="peers-section" id="peers-{{.ID}}">
@@ -1810,6 +1888,8 @@
             // Keep filter data attributes current
             card.dataset.status = String(torrent.status);
             card.dataset.name = torrent.name ? torrent.name : '';
+            card.dataset.ratioLimit = String(torrent.seedRatioLimit || 0);
+            card.dataset.ratioMode = String(torrent.seedRatioMode || 0);
             
             // Update status badge (only if changed)
             const statusBadge = card.querySelector('.torrent-status');
@@ -1856,6 +1936,8 @@
                 }
                 
                 html += `<span>Ratio: <span class="value">${formatRatio(torrent.uploadRatio)}</span></span>`;
+                const limitText = torrent.seedRatioMode === 1 ? parseFloat(torrent.seedRatioLimit || 0).toFixed(2) : '∞';
+                html += `<span>Limit: <span class="value ratio-limit-val">${limitText}</span></span>`;
                 html += `<span>Peers: <span class="value">${torrent.peersConnected}</span></span>`;
                 
                 if (torrent.percentDone < 1.0 && torrent.eta > 0) {
@@ -1893,7 +1975,48 @@
             // Keep filters and counts in sync after each card update
             applyFilters();
         }
-        
+
+        function toggleRatioEditor(id, event) {
+            event.stopPropagation();
+            const editor = document.getElementById('ratio-editor-' + id);
+            if (!editor) return;
+            const card = document.querySelector(`.torrent-card[data-id="${id}"]`);
+            const isVisible = editor.style.display === 'flex';
+            if (!isVisible) {
+                const mode = parseInt(card.dataset.ratioMode || '0', 10);
+                const limit = parseFloat(card.dataset.ratioLimit || '0');
+                const input = editor.querySelector('.ratio-input');
+                const select = editor.querySelector('.ratio-mode-select');
+                if (input) input.value = mode === 1 ? limit.toFixed(1) : '';
+                if (select) select.value = String(mode);
+            }
+            editor.style.display = isVisible ? 'none' : 'flex';
+        }
+
+        function saveRatio(id, event) {
+            event.stopPropagation();
+            const editor = document.getElementById('ratio-editor-' + id);
+            if (!editor) return;
+            const input = editor.querySelector('.ratio-input');
+            const select = editor.querySelector('.ratio-mode-select');
+            const ratioMode = parseInt(select.value, 10);
+            const ratio = parseFloat(input.value) || 0;
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id, action: 'set-ratio', ratio: ratio, ratioMode: ratioMode})
+            }).then(() => {
+                const card = document.querySelector(`.torrent-card[data-id="${id}"]`);
+                if (card) {
+                    card.dataset.ratioLimit = String(ratio);
+                    card.dataset.ratioMode = String(ratioMode);
+                    const ratioLimitVal = card.querySelector('.ratio-limit-val');
+                    if (ratioLimitVal) ratioLimitVal.textContent = ratioMode === 1 ? ratio.toFixed(2) : '∞';
+                }
+                editor.style.display = 'none';
+            }).catch(err => console.error('set-ratio failed:', err));
+        }
+
         function updateGlobalStats(stats) {
             const dlSpeed = document.getElementById('download-speed');
             const ulSpeed = document.getElementById('upload-speed');

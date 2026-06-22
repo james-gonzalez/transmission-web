@@ -52,6 +52,8 @@ type RPCResponse struct {
 }
 
 type Torrent struct {
+	SeedRatioLimit float64 `json:"seedRatioLimit"`
+	SeedRatioMode  int     `json:"seedRatioMode"`
 	ID             int     `json:"id"`
 	Name           string  `json:"name"`
 	Status         int     `json:"status"`
@@ -260,8 +262,9 @@ func (c *TransmissionClient) GetTorrents() ([]Torrent, error) {
 				"id", "name", "status", "percentDone", "rateDownload", "rateUpload",
 				"uploadRatio", "sizeWhenDone", "downloadedEver", "uploadedEver",
 				"peersConnected", "eta", "error", "errorString", "addedDate",
-			},
+			"seedRatioLimit", "seedRatioMode",
 		},
+	},
 	}
 
 	resp, err := c.doRequest(req)
@@ -547,6 +550,21 @@ func (c *TransmissionClient) GetFiles(id int) ([]File, error) {
 
 // SetFilesWanted marks the given file indices as wanted (download) or unwanted
 // (skip) on a torrent via torrent-set.
+
+// SetSeedRatio sets the per-torrent seed ratio limit.
+// mode: 0=global, 1=stop at ratio, 2=seed forever
+func (c *TransmissionClient) SetSeedRatio(id int, ratio float64, mode int) error {
+	req := &RPCRequest{
+		Method: "torrent-set",
+		Arguments: map[string]interface{}{
+			"ids":            []int{id},
+			"seedRatioLimit": ratio,
+			"seedRatioMode":  mode,
+		},
+	}
+	_, err := c.doRequest(req)
+	return err
+}
 func (c *TransmissionClient) SetFilesWanted(id int, indices []int, wanted bool) error {
 	field := "files-wanted"
 	if !wanted {
@@ -872,18 +890,20 @@ func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method!= "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req struct {
-		Action     string `json:"action"`
-		ID         int    `json:"id"`
-		DeleteData bool   `json:"deleteData"`
+		Action     string  `json:"action"`
+		ID         int     `json:"id"`
+		DeleteData bool    `json:"deleteData"`
+		Ratio      float64 `json:"ratio"`
+		RatioMode  int     `json:"ratioMode"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err!= nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -900,14 +920,16 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		err = s.client.ReannounceTorrent(req.ID)
 	case "reannounce-all":
 		err = s.client.ReannounceAll()
+	case "set-ratio":
+		err = s.client.SetSeedRatio(req.ID, req.Ratio, req.RatioMode)
 	default:
 		http.Error(w, "Unknown action", http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+	if err!= nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr!= nil {
 			log.Printf("Failed to encode error response: %v", encErr)
 		}
 		return
