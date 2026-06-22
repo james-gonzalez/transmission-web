@@ -281,7 +281,7 @@
         .torrent-list {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 6px;
         }
         
         .torrent-card {
@@ -296,7 +296,7 @@
         }
         
         .torrent-main {
-            padding: 15px 20px;
+            padding: 10px 16px;
             cursor: pointer;
         }
         
@@ -308,7 +308,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             gap: 15px;
         }
         
@@ -348,11 +348,11 @@
         }
         
         .progress-bar {
-            height: 8px;
+            height: 5px;
             background: var(--bg-secondary);
             border-radius: 4px;
             overflow: hidden;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         
         .progress-fill {
@@ -380,7 +380,7 @@
         
         .torrent-stats {
             display: flex;
-            gap: 20px;
+            gap: 12px;
             flex-wrap: wrap;
             font-size: 0.85rem;
             color: var(--text-secondary);
@@ -1053,6 +1053,86 @@
             background: var(--text-secondary);
             color: var(--bg-primary);
         }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all var(--transition-base);
+        }
+
+        .filter-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .filter-tab.active {
+            background: rgba(78, 204, 163, 0.15);
+            color: var(--accent);
+        }
+
+        .filter-tab .badge {
+            font-size: 0.75rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .filter-tab.active .badge {
+            background: rgba(78, 204, 163, 0.25);
+            color: var(--accent);
+        }
+
+        .filter-search {
+            flex: 1;
+            min-width: 180px;
+            max-width: 300px;
+            padding: 7px 12px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            margin-left: auto;
+        }
+
+        .filter-search:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .filter-search::placeholder {
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -1124,10 +1204,21 @@
             </div>
         </div>
         
+        <div class="filter-bar" id="filter-bar">
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All <span class="badge" id="badge-all">0</span></button>
+                <button class="filter-tab" data-filter="downloading" onclick="setFilter('downloading')">Downloading <span class="badge" id="badge-downloading">0</span></button>
+                <button class="filter-tab" data-filter="seeding" onclick="setFilter('seeding')">Seeding <span class="badge" id="badge-seeding">0</span></button>
+                <button class="filter-tab" data-filter="stopped" onclick="setFilter('stopped')">Stopped <span class="badge" id="badge-stopped">0</span></button>
+                <button class="filter-tab" data-filter="queued" onclick="setFilter('queued')">Queued <span class="badge" id="badge-queued">0</span></button>
+            </div>
+            <input type="text" class="filter-search" id="filter-search" placeholder="Search torrents..." oninput="applyFilters()">
+        </div>
+        
         <div class="torrent-list" id="torrent-list">
             {{if .Torrents}}
                 {{range .Torrents}}
-                <div class="torrent-card" data-id="{{.ID}}">
+                <div class="torrent-card" data-id="{{.ID}}" data-status="{{.Status}}" data-name="{{.Name}}">
                     <div class="torrent-main" onclick="togglePeers({{.ID}}, event)">
                         <div class="torrent-header">
                             <span class="torrent-name">{{.Name}}<span class="click-hint">(click for peers)</span></span>
@@ -1265,6 +1356,53 @@
         let removeId = null;
         let openPeersId = null;
         
+        // Filter state
+        let activeFilter = 'all';
+
+        function setFilter(filter) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.filter === filter);
+            });
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const search = (document.getElementById('filter-search')?.value || '').toLowerCase();
+            const statusMap = {
+                'downloading': ['4'],
+                'seeding': ['6'],
+                'stopped': ['0'],
+                'queued': ['1', '2', '3', '5']
+            };
+            const allowedStatuses = activeFilter === 'all' ? null : statusMap[activeFilter];
+            document.querySelectorAll('#torrent-list .torrent-card').forEach(card => {
+                const name = (card.dataset.name || '').toLowerCase();
+                const status = card.dataset.status || '';
+                const statusMatch = !allowedStatuses || allowedStatuses.includes(status);
+                const searchMatch = !search || name.includes(search);
+                card.style.display = (statusMatch && searchMatch) ? '' : 'none';
+            });
+            updateFilterCounts();
+        }
+
+        function updateFilterCounts() {
+            const counts = { all: 0, downloading: 0, seeding: 0, stopped: 0, queued: 0 };
+            const queuedStatuses = new Set(['1', '2', '3', '5']);
+            document.querySelectorAll('#torrent-list .torrent-card').forEach(card => {
+                const status = card.dataset.status || '';
+                counts.all++;
+                if (status === '4') counts.downloading++;
+                else if (status === '6') counts.seeding++;
+                else if (status === '0') counts.stopped++;
+                else if (queuedStatuses.has(status)) counts.queued++;
+            });
+            Object.keys(counts).forEach(key => {
+                const badge = document.getElementById('badge-' + key);
+                if (badge) badge.textContent = counts[key];
+            });
+        }
+        
         function torrentAction(id, action) {
             // Disable the button to prevent double-clicks
             const card = document.querySelector(`.torrent-card[data-id="${id}"]`);
@@ -1344,6 +1482,7 @@
                 // Remove the card from DOM
                 const card = document.querySelector(`.torrent-card[data-id="${removeId}"]`);
                 if (card) card.remove();
+                updateFilterCounts();
                 refreshData();
             });
         }
@@ -1668,6 +1807,10 @@
             const card = document.querySelector(`.torrent-card[data-id="${torrent.id}"]`);
             if (!card) return;
             
+            // Keep filter data attributes current
+            card.dataset.status = String(torrent.status);
+            card.dataset.name = torrent.name ? torrent.name : '';
+            
             // Update status badge (only if changed)
             const statusBadge = card.querySelector('.torrent-status');
             if (statusBadge) {
@@ -1746,6 +1889,9 @@
                     }
                 }
             }
+
+            // Keep filters and counts in sync after each card update
+            applyFilters();
         }
         
         function updateGlobalStats(stats) {
@@ -1822,6 +1968,8 @@
             };
         }
         startStream();
+        // Populate filter badges from server-rendered cards on initial load
+        updateFilterCounts();
         
         // Close modal on escape key
         document.addEventListener('keydown', (e) => {
@@ -1858,14 +2006,17 @@
             rssViewActive = !rssViewActive;
             const rssSection = document.getElementById('rss-section');
             const torrentList = document.getElementById('torrent-list');
+            const filterBar = document.getElementById('filter-bar');
             
             if (rssViewActive) {
                 rssSection.style.display = 'block';
                 torrentList.style.display = 'none';
+                if (filterBar) filterBar.style.display = 'none';
                 loadFeeds();
             } else {
                 rssSection.style.display = 'none';
                 torrentList.style.display = 'flex';
+                if (filterBar) filterBar.style.display = 'flex';
             }
         }
         
