@@ -262,9 +262,9 @@ func (c *TransmissionClient) GetTorrents() ([]Torrent, error) {
 				"id", "name", "status", "percentDone", "rateDownload", "rateUpload",
 				"uploadRatio", "sizeWhenDone", "downloadedEver", "uploadedEver",
 				"peersConnected", "eta", "error", "errorString", "addedDate",
-			"seedRatioLimit", "seedRatioMode",
+				"seedRatioLimit", "seedRatioMode",
+			},
 		},
-	},
 	}
 
 	resp, err := c.doRequest(req)
@@ -890,7 +890,7 @@ func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
-	if r.Method!= "POST" {
+	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -903,7 +903,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		RatioMode  int     `json:"ratioMode"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err!= nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -928,8 +928,8 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err!= nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr!= nil {
+	if err != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
 			log.Printf("Failed to encode error response: %v", encErr)
 		}
 		return
