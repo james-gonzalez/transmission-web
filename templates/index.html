@@ -1235,6 +1235,7 @@
                 <span class="port-status {{if .PortOpen}}port-open{{else}}port-closed{{end}}">
                     Port {{if .PortOpen}}Open{{else}}Closed{{end}}
                 </span>
+                <button class="btn btn-sm btn-secondary" onclick="openGlobalRatio()" title="Set the daemon-wide default seed ratio" style="margin-left: 10px;">⚖️ Seed Ratio</button>
                 <button class="btn btn-sm btn-secondary" onclick="openStats()" title="Daemon statistics" style="margin-left: 10px;">📊 Stats</button>
             </div>
         </header>
@@ -1366,6 +1367,25 @@
             <div id="stats-modal-body"><div class="peers-loading">Loading...</div></div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeStatsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="global-ratio-modal" role="dialog" aria-modal="true" aria-labelledby="global-ratio-title">
+        <div class="modal-content" style="max-width: 460px;">
+            <h3 id="global-ratio-title">Global Seed Ratio</h3>
+            <p style="opacity:0.75; margin-top:0;">Sets the daemon-wide default. Applies to torrents using the "Use global" ratio mode.</p>
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                <input type="checkbox" id="global-ratio-enabled"> Stop seeding at ratio
+            </label>
+            <label style="display:flex; align-items:center; gap:8px;">
+                Ratio
+                <input type="number" class="ratio-input" id="global-ratio-input" step="0.1" min="0" placeholder="e.g. 2.0">
+            </label>
+            <div id="global-ratio-status" style="min-height:1.2em; margin-top:10px; opacity:0.8;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeGlobalRatioModal()">Cancel</button>
+                <button class="btn" onclick="applyGlobalRatio()">Apply</button>
             </div>
         </div>
     </div>
@@ -2112,6 +2132,10 @@
         document.getElementById('stats-modal').addEventListener('click', (e) => {
             if (e.target.id === 'stats-modal') closeStatsModal();
         });
+
+        document.getElementById('global-ratio-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'global-ratio-modal') closeGlobalRatioModal();
+        });
         
         document.getElementById('feed-modal').addEventListener('click', (e) => {
             if (e.target.id === 'feed-modal') closeFeedModal();
@@ -2492,6 +2516,49 @@
                 .catch(err => {
                     body.innerHTML = '<div class="no-peers">Error loading stats</div>';
                 });
+        }
+
+        function openGlobalRatio() {
+            const modal = document.getElementById('global-ratio-modal');
+            const status = document.getElementById('global-ratio-status');
+            status.textContent = 'Loading…';
+            modal.classList.add('active');
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(data => {
+                    const info = (data && data.info) || {};
+                    document.getElementById('global-ratio-enabled').checked = !!info.seedRatioLimited;
+                    document.getElementById('global-ratio-input').value =
+                        info.seedRatioLimit != null ? parseFloat(info.seedRatioLimit).toFixed(1) : '';
+                    status.textContent = '';
+                })
+                .catch(() => { status.textContent = 'Could not load current value'; });
+        }
+
+        function applyGlobalRatio() {
+            const enabled = document.getElementById('global-ratio-enabled').checked;
+            const ratio = parseFloat(document.getElementById('global-ratio-input').value) || 0;
+            const status = document.getElementById('global-ratio-status');
+            status.textContent = 'Saving…';
+            fetch('/api/action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'set-global-ratio', ratio: ratio, enabled: enabled})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    status.textContent = 'Error: ' + data.error;
+                } else {
+                    status.textContent = 'Saved';
+                    setTimeout(closeGlobalRatioModal, 600);
+                }
+            })
+            .catch(() => { status.textContent = 'Error'; });
+        }
+
+        function closeGlobalRatioModal() {
+            document.getElementById('global-ratio-modal').classList.remove('active');
         }
 
         function closeStatsModal() {

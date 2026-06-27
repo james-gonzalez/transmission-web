@@ -110,10 +110,12 @@ type StatsDetail struct {
 }
 
 type SessionInfo struct {
-	Version     string `json:"version"`
-	RPCVersion  int    `json:"rpc-version"`
-	DownloadDir string `json:"download-dir"`
-	PeerPort    int    `json:"peer-port"`
+	Version          string  `json:"version"`
+	RPCVersion       int     `json:"rpc-version"`
+	DownloadDir      string  `json:"download-dir"`
+	PeerPort         int     `json:"peer-port"`
+	SeedRatioLimit   float64 `json:"seedRatioLimit"`
+	SeedRatioLimited bool    `json:"seedRatioLimited"`
 }
 
 type PortTest struct {
@@ -301,7 +303,7 @@ func (c *TransmissionClient) GetSessionInfo() (*SessionInfo, error) {
 	req := &RPCRequest{
 		Method: "session-get",
 		Arguments: map[string]interface{}{
-			"fields": []string{"version", "rpc-version", "download-dir", "peer-port"},
+			"fields": []string{"version", "rpc-version", "download-dir", "peer-port", "seedRatioLimit", "seedRatioLimited"},
 		},
 	}
 	resp, err := c.doRequest(req)
@@ -565,6 +567,22 @@ func (c *TransmissionClient) SetSeedRatio(id int, ratio float64, mode int) error
 	_, err := c.doRequest(req)
 	return err
 }
+
+// SetGlobalSeedRatio sets the daemon-wide default seed ratio via session-set.
+// enabled toggles whether the limit is enforced; torrents using "global" mode
+// (seedRatioMode 0) inherit this value.
+func (c *TransmissionClient) SetGlobalSeedRatio(ratio float64, enabled bool) error {
+	req := &RPCRequest{
+		Method: "session-set",
+		Arguments: map[string]interface{}{
+			"seedRatioLimit":   ratio,
+			"seedRatioLimited": enabled,
+		},
+	}
+	_, err := c.doRequest(req)
+	return err
+}
+
 func (c *TransmissionClient) SetFilesWanted(id int, indices []int, wanted bool) error {
 	field := "files-wanted"
 	if !wanted {
@@ -901,6 +919,7 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		DeleteData bool    `json:"deleteData"`
 		Ratio      float64 `json:"ratio"`
 		RatioMode  int     `json:"ratioMode"`
+		Enabled    bool    `json:"enabled"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -922,6 +941,8 @@ func (s *Server) handleAction(w http.ResponseWriter, r *http.Request) {
 		err = s.client.ReannounceAll()
 	case "set-ratio":
 		err = s.client.SetSeedRatio(req.ID, req.Ratio, req.RatioMode)
+	case "set-global-ratio":
+		err = s.client.SetGlobalSeedRatio(req.Ratio, req.Enabled)
 	default:
 		http.Error(w, "Unknown action", http.StatusBadRequest)
 		return
