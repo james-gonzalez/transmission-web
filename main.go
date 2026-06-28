@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"embed"
 	"encoding/base64"
@@ -711,6 +712,66 @@ type Server struct {
 	client      *TransmissionClient
 	feedManager *FeedManager
 	tmpl        *template.Template
+
+	cacheMu       sync.RWMutex
+	cachedPort    bool
+	cachedPortAt  time.Time
+	cachedFS      *FreeSpace
+	cachedFSAt    time.Time
+	cachedDir     string
+}
+
+// cachedPortOpen returns TestPort result, refreshing at most once every 60s.
+func (s *Server) cachedPortOpen() bool {
+	s.cacheMu.RLock()
+	if time.Since(s.cachedPortAt) < 60*time.Second {
+		v := s.cachedPort
+		s.cacheMu.RUnlock()
+		return v
+	}
+	s.cacheMu.RUnlock()
+
+	open, _ := s.client.TestPort()
+	s.cacheMu.Lock()
+	s.cachedPort = open
+	s.cachedPortAt = time.Now()
+	s.cacheMu.Unlock()
+	return open
+}
+
+// cachedFreeSpace returns FreeSpace, refreshing at most once every 60s.
+func (s *Server) cachedFreeSpace() *FreeSpace {
+	s.cacheMu.RLock()
+	if time.Since(s.cachedFSAt) < 60*time.Second {
+		fs := s.cachedFS
+		s.cacheMu.RUnlock()
+		return fs
+	}
+	s.cacheMu.RUnlock()
+
+	dir := s.cachedDir
+	if dir == "" {
+		var err error
+		dir, err = s.client.GetDownloadDir()
+		if err != nil {
+			log.Printf("⚠️  Could not determine download dir: %v", err)
+			return nil
+		}
+		s.cacheMu.Lock()
+		s.cachedDir = dir
+		s.cacheMu.Unlock()
+	}
+
+	fs, err := s.client.GetFreeSpace(dir)
+	if err != nil {
+		log.Printf("⚠️  Could not get free space for %s: %v", dir, err)
+		return nil
+	}
+	s.cacheMu.Lock()
+	s.cachedFS = fs
+	s.cachedFSAt = time.Now()
+	s.cacheMu.Unlock()
+	return fs
 }
 
 func NewServer(client *TransmissionClient, feedManager *FeedManager) (*Server, error) {
@@ -732,17 +793,19 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// portOpen and freeSpace are cached (60s TTL) — fetch them off the hot path.
+	portOpen := s.cachedPortOpen()
+	freeSpace := s.cachedFreeSpace()
+
 	var (
 		torrents    []Torrent
 		stats       *SessionStats
-		portOpen    bool
-		freeSpace   *FreeSpace
 		torrentsErr error
 		statsErr    error
 		wg          sync.WaitGroup
 	)
 
-	wg.Add(4)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		torrents, torrentsErr = s.client.GetTorrents()
@@ -750,21 +813,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer wg.Done()
 		stats, statsErr = s.client.GetSessionStats()
-	}()
-	go func() {
-		defer wg.Done()
-		portOpen, _ = s.client.TestPort()
-	}()
-	go func() {
-		defer wg.Done()
-		downloadDir, err := s.client.GetDownloadDir()
-		if err != nil {
-			log.Printf("⚠️  Could not determine download dir: %v", err)
-			return
-		}
-		if freeSpace, err = s.client.GetFreeSpace(downloadDir); err != nil {
-			log.Printf("⚠️  Could not get free space for %s: %v", downloadDir, err)
-		}
 	}()
 	wg.Wait()
 
@@ -1382,28 +1430,30 @@ func main() {
 		log.Fatalf("Failed to create server: %v", err)
 	}
 
+	gz := gzipHandler
+
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	http.HandleFunc("/", server.handleIndex)
-	http.HandleFunc("/api/torrents", server.handleAPI)
-	http.HandleFunc("/api/peers", server.handlePeers)
-	http.HandleFunc("/api/trackers", server.handleTrackers)
-	http.HandleFunc("/api/files", server.handleFiles)
-	http.HandleFunc("/api/files/set", server.handleSetFiles)
-	http.HandleFunc("/api/stats", server.handleStats)
-	http.HandleFunc("/api/stream", server.handleStream)
-	http.HandleFunc("/api/add", server.handleAdd)
-	http.HandleFunc("/api/action", server.handleAction)
+	http.Handle("/", gz(http.HandlerFunc(server.handleIndex)))
+	http.Handle("/api/torrents", gz(http.HandlerFunc(server.handleAPI)))
+	http.Handle("/api/peers", gz(http.HandlerFunc(server.handlePeers)))
+	http.Handle("/api/trackers", gz(http.HandlerFunc(server.handleTrackers)))
+	http.Handle("/api/files", gz(http.HandlerFunc(server.handleFiles)))
+	http.Handle("/api/files/set", gz(http.HandlerFunc(server.handleSetFiles)))
+	http.Handle("/api/stats", gz(http.HandlerFunc(server.handleStats)))
+	http.HandleFunc("/api/stream", server.handleStream) // SSE — no gzip
+	http.Handle("/api/add", gz(http.HandlerFunc(server.handleAdd)))
+	http.Handle("/api/action", gz(http.HandlerFunc(server.handleAction)))
 
 	// RSS feed endpoints
-	http.HandleFunc("/api/feeds", server.handleGetFeeds)
-	http.HandleFunc("/api/feeds/add", server.handleAddFeed)
-	http.HandleFunc("/api/feeds/update", server.handleUpdateFeed)
-	http.HandleFunc("/api/feeds/delete", server.handleDeleteFeed)
-	http.HandleFunc("/api/feeds/check", server.handleCheckFeed)
-	http.HandleFunc("/api/feeds/history", server.handleFeedHistory)
-	http.HandleFunc("/api/feeds/logs", server.handleFeedCheckLogs)
+	http.Handle("/api/feeds", gz(http.HandlerFunc(server.handleGetFeeds)))
+	http.Handle("/api/feeds/add", gz(http.HandlerFunc(server.handleAddFeed)))
+	http.Handle("/api/feeds/update", gz(http.HandlerFunc(server.handleUpdateFeed)))
+	http.Handle("/api/feeds/delete", gz(http.HandlerFunc(server.handleDeleteFeed)))
+	http.Handle("/api/feeds/check", gz(http.HandlerFunc(server.handleCheckFeed)))
+	http.Handle("/api/feeds/history", gz(http.HandlerFunc(server.handleFeedHistory)))
+	http.Handle("/api/feeds/logs", gz(http.HandlerFunc(server.handleFeedCheckLogs)))
 
 	log.Printf("Starting server on %s", config.ListenAddr)
 	log.Printf("Connecting to Transmission at %s", config.TransmissionURL)
@@ -1437,6 +1487,33 @@ func getEnv(key, defaultVal string) string {
 }
 
 // isClientDisconnectError checks if an error is due to client disconnecting
+type gzipWriter struct {
+	http.ResponseWriter
+	w *gzip.Writer
+}
+
+func (g *gzipWriter) Write(b []byte) (int, error) { return g.w.Write(b) }
+
+// gzipHandler compresses responses for clients that accept gzip.
+// Skips SSE streams (text/event-stream) which must not be buffered.
+func gzipHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		defer gz.Close()
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Del("Content-Length")
+		next.ServeHTTP(&gzipWriter{ResponseWriter: w, w: gz}, r)
+	})
+}
+
 func isClientDisconnectError(err error) bool {
 	if err == nil {
 		return false
