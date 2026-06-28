@@ -732,25 +732,49 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	torrents, err := s.client.GetTorrents()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	var (
+		torrents    []Torrent
+		stats       *SessionStats
+		portOpen    bool
+		freeSpace   *FreeSpace
+		torrentsErr error
+		statsErr    error
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		torrents, torrentsErr = s.client.GetTorrents()
+	}()
+	go func() {
+		defer wg.Done()
+		stats, statsErr = s.client.GetSessionStats()
+	}()
+	go func() {
+		defer wg.Done()
+		portOpen, _ = s.client.TestPort()
+	}()
+	go func() {
+		defer wg.Done()
+		downloadDir, err := s.client.GetDownloadDir()
+		if err != nil {
+			log.Printf("⚠️  Could not determine download dir: %v", err)
+			return
+		}
+		if freeSpace, err = s.client.GetFreeSpace(downloadDir); err != nil {
+			log.Printf("⚠️  Could not get free space for %s: %v", downloadDir, err)
+		}
+	}()
+	wg.Wait()
+
+	if torrentsErr != nil {
+		http.Error(w, torrentsErr.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	stats, err := s.client.GetSessionStats()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if statsErr != nil {
+		http.Error(w, statsErr.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	portOpen, _ := s.client.TestPort()
-
-	var freeSpace *FreeSpace
-	if downloadDir, err := s.client.GetDownloadDir(); err != nil {
-		log.Printf("⚠️  Could not determine download dir: %v", err)
-	} else if freeSpace, err = s.client.GetFreeSpace(downloadDir); err != nil {
-		log.Printf("⚠️  Could not get free space for %s: %v", downloadDir, err)
 	}
 
 	data := map[string]interface{}{
@@ -764,7 +788,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "index.html", data); err != nil {
-		// Only log errors that aren't client disconnects
 		if !isClientDisconnectError(err) {
 			log.Printf("Template error: %v", err)
 		}
