@@ -713,12 +713,12 @@ type Server struct {
 	feedManager *FeedManager
 	tmpl        *template.Template
 
-	cacheMu       sync.RWMutex
-	cachedPort    bool
-	cachedPortAt  time.Time
-	cachedFS      *FreeSpace
-	cachedFSAt    time.Time
-	cachedDir     string
+	cacheMu      sync.RWMutex
+	cachedPort   bool
+	cachedPortAt time.Time
+	cachedFS     *FreeSpace
+	cachedFSAt   time.Time
+	cachedDir    string
 }
 
 // cachedPortOpen returns TestPort result, refreshing at most once every 60s.
