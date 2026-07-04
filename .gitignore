@@ -46,3 +46,4 @@ k8s/secret.yaml
 # AI Tools
 graphify-out/
 .claude/
+.opencode/
