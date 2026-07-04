@@ -1,5 +1,5 @@
 # Build stage - compile per-platform inside buildx using automatic platform ARGs
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 
 # Provided automatically by buildx for each target platform
 ARG TARGETOS
@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/transmission-web .
 
 # Runtime stage
-FROM alpine:3.23
+FROM alpine:3.24
 
 RUN apk --no-cache add ca-certificates tzdata
 
