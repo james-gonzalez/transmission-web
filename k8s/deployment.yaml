@@ -25,7 +25,10 @@ spec:
           protocol: TCP
         env:
         - name: TRANSMISSION_URL
-          value: "http://192.168.86.61:9091/transmission/rpc"
+          valueFrom:
+            secretKeyRef:
+              name: transmission-web-secret
+              key: transmission_url
         - name: TRANSMISSION_USER
           value: "transmission"
         - name: TRANSMISSION_PASS

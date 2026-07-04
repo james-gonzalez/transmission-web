@@ -30,7 +30,7 @@ RUN mkdir -p /data
 
 EXPOSE 8080
 
-ENV TRANSMISSION_URL="http://192.168.86.61:9091/transmission/rpc"
+# ENV TRANSMISSION_URL must be supplied at runtime
 ENV TRANSMISSION_USER="transmission"
 ENV TRANSMISSION_PASS=""
 ENV LISTEN_ADDR=":8080"

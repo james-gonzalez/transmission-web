@@ -207,54 +207,65 @@ func NewTransmissionClient(url, user, pass string) *TransmissionClient {
 }
 
 func (c *TransmissionClient) doRequest(req *RPCRequest) (*RPCResponse, error) {
-	c.mu.RLock()
-	sessionID := c.sessionID
-	c.mu.RUnlock()
-
-	body, _ := json.Marshal(req)
-	httpReq, err := http.NewRequestWithContext(context.Background(), "POST", c.url, strings.NewReader(string(body)))
+	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.user != "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(c.user + ":" + c.pass))
-		httpReq.Header.Set("Authorization", "Basic "+auth)
-	}
-	if sessionID != "" {
-		httpReq.Header.Set("X-Transmission-Session-Id", sessionID)
+	for attempt := 0; attempt < 2; attempt++ {
+		c.mu.RLock()
+		sessionID := c.sessionID
+		c.mu.RUnlock()
+
+		httpReq, err := http.NewRequestWithContext(context.Background(), "POST", c.url, strings.NewReader(string(body)))
+		if err != nil {
+			return nil, err
+		}
+
+		httpReq.Header.Set("Content-Type", "application/json")
+		if c.user != "" {
+			auth := base64.StdEncoding.EncodeToString([]byte(c.user + ":" + c.pass))
+			httpReq.Header.Set("Authorization", "Basic "+auth)
+		}
+		if sessionID != "" {
+			httpReq.Header.Set("X-Transmission-Session-Id", sessionID)
+		}
+
+		resp, err := c.client.Do(httpReq)
+		if err != nil {
+			return nil, err
+		}
+
+		// Handle 409 - need to get new session ID
+		if resp.StatusCode == 409 {
+			newSessionID := resp.Header.Get("X-Transmission-Session-Id")
+			c.mu.Lock()
+			c.sessionID = newSessionID
+			c.mu.Unlock()
+			resp.Body.Close()
+			continue // Retry with new session ID
+		}
+
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
+		}
+
+		var rpcResp RPCResponse
+		decodeErr := json.NewDecoder(resp.Body).Decode(&rpcResp)
+		resp.Body.Close()
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+
+		if rpcResp.Result != "success" {
+			return nil, fmt.Errorf("RPC error: %s", rpcResp.Result)
+		}
+
+		return &rpcResp, nil
 	}
 
-	resp, err := c.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Handle 409 - need to get new session ID
-	if resp.StatusCode == 409 {
-		newSessionID := resp.Header.Get("X-Transmission-Session-Id")
-		c.mu.Lock()
-		c.sessionID = newSessionID
-		c.mu.Unlock()
-		return c.doRequest(req) // Retry with new session ID
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
-	}
-
-	var rpcResp RPCResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return nil, err
-	}
-
-	if rpcResp.Result != "success" {
-		return nil, fmt.Errorf("RPC error: %s", rpcResp.Result)
-	}
-
-	return &rpcResp, nil
+	return nil, fmt.Errorf("session ID negotiation failed after retries")
 }
 
 func (c *TransmissionClient) GetTorrents() ([]Torrent, error) {
