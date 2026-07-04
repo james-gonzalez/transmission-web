@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -212,6 +214,7 @@ func (fm *FeedManager) checkAllFeeds() {
 		return
 	}
 
+	var wg sync.WaitGroup
 	for _, feed := range feeds {
 		if !feed.Enabled {
 			continue
@@ -222,10 +225,15 @@ func (fm *FeedManager) checkAllFeeds() {
 			continue
 		}
 
-		if err := fm.CheckFeed(feed.ID); err != nil {
-			log.Printf("Error checking feed %s: %v", feed.Name, err)
-		}
+		wg.Add(1)
+		go func(feed Feed) {
+			defer wg.Done()
+			if err := fm.CheckFeed(feed.ID); err != nil {
+				log.Printf("Error checking feed %s: %v", feed.Name, err)
+			}
+		}(feed)
 	}
+	wg.Wait()
 }
 
 // CheckFeed checks a single feed for new items
@@ -373,11 +381,11 @@ func (fm *FeedManager) findTorrentLink(item *gofeed.Item) string {
 }
 
 func isMagnetLink(url string) bool {
-	return len(url) > 8 && url[:8] == "magnet:?"
+	return strings.HasPrefix(url, "magnet:?")
 }
 
 func isTorrentFile(url string) bool {
-	return len(url) > 8 && url[len(url)-8:] == ".torrent"
+	return strings.HasSuffix(url, ".torrent")
 }
 
 func (fm *FeedManager) isDownloaded(feedID int, guid string) bool {
@@ -400,7 +408,7 @@ func (fm *FeedManager) markDownloaded(feedID int, item *gofeed.Item) error {
 
 func (fm *FeedManager) updateFeedChecked(feedID int, matchCount int, errorMsg string) {
 	_, err := fm.db.Exec(
-		`UPDATE feeds SET last_checked = datetime('now'), last_error = ?, match_count = match_count + ?
+		`UPDATE feeds SET last_checked = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), last_error = ?, match_count = match_count + ?
 		 WHERE id = ?`,
 		errorMsg, matchCount, feedID,
 	)
@@ -411,7 +419,7 @@ func (fm *FeedManager) updateFeedChecked(feedID int, matchCount int, errorMsg st
 
 func (fm *FeedManager) updateFeedError(feedID int, errorMsg string) {
 	_, err := fm.db.Exec(
-		"UPDATE feeds SET last_checked = datetime('now'), last_error = ? WHERE id = ?",
+		"UPDATE feeds SET last_checked = STRFTIME('%Y-%m-%dT%H:%M:%SZ', 'now'), last_error = ? WHERE id = ?",
 		errorMsg, feedID,
 	)
 	if err != nil {
