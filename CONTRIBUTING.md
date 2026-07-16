@@ -18,13 +18,35 @@ Thank you for your interest in contributing to Transmission Web!
 ### Prerequisites
 
 - Go 1.21 or later
+- Node.js 20 or later (for the `frontend/` SPA)
 - Docker (optional, for container testing)
 
 ### Building
 
+The Go binary embeds the built frontend (`frontend/dist`) via `go:embed`, so the frontend must be built first:
+
 ```bash
+cd frontend && npm ci && npm run build && cd ..
 go build -o transmission-web .
 ```
+
+### Frontend Development
+
+For frontend work, run the Go backend and the Vite dev server side by side. Vite proxies `/api/*` requests to the Go backend, so both stay in sync without a rebuild:
+
+```bash
+# terminal 1
+export TRANSMISSION_URL="http://localhost:9091/transmission/rpc"
+# ... other env vars, see below
+go run .
+
+# terminal 2
+cd frontend
+npm install
+npm run dev
+```
+
+Then open the Vite dev server URL (printed on startup, typically `http://localhost:5173`).
 
 ### Running Locally
 

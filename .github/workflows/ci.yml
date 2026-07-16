@@ -7,12 +7,53 @@ on:
     branches: [ main ]
 
 jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Type check
+      working-directory: frontend
+      run: npx tsc -b
+
+    - name: Lint
+      working-directory: frontend
+      run: npm run lint
+
+    - name: Build
+      working-directory: frontend
+      run: npm run build
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm ci && npm run build
 
     - name: Set up Go
       uses: actions/setup-go@v6
@@ -35,6 +76,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v7
 
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm ci && npm run build
+
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
@@ -49,10 +101,21 @@ jobs:
   test:
     name: Test and Build
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm ci && npm run build
 
     - name: Set up Go
       uses: actions/setup-go@v6
@@ -104,6 +167,17 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v7
+
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm ci && npm run build
 
     - name: Set up Go
       uses: actions/setup-go@v6

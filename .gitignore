@@ -43,6 +43,10 @@ k8s/secret.yaml
 .idea/
 .vscode/
 
+# Frontend build output and dependencies (built via `npm run build`, embedded by go:embed)
+frontend/node_modules/
+frontend/dist/
+
 # AI Tools
 graphify-out/
 .claude/
