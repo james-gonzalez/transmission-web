@@ -28,16 +28,16 @@ export function TorrentCard({ torrent, isOpen, onToggleOpen, onRequestRemove }: 
   const isComplete = torrent.percentDone >= 1.0
 
   return (
-    <Card className="transition-transform hover:translate-x-1">
+    <Card size="sm" className="transition-transform hover:translate-x-1">
       <CardContent className="cursor-pointer" onClick={onToggleOpen}>
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-semibold">{torrent.name}</span>
+          <span className="truncate text-sm font-semibold">{torrent.name}</span>
           <Badge variant={isDownloading ? 'default' : isStopped ? 'secondary' : 'outline'}>
             {getStatusText(torrent.status)}
           </Badge>
         </div>
 
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={cn(
               'h-full rounded-full bg-primary transition-all duration-300',
@@ -48,61 +48,52 @@ export function TorrentCard({ torrent, isOpen, onToggleOpen, onRequestRemove }: 
           />
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>
-            Progress: <span className="text-foreground">{formatPercent(torrent.percentDone)}</span>
+            <span className="text-foreground">{formatPercent(torrent.percentDone)}</span>
           </span>
           <span>
-            Size: <span className="text-foreground">{formatBytes(torrent.sizeWhenDone)}</span>
+            <span className="text-foreground">{formatBytes(torrent.sizeWhenDone)}</span>
           </span>
           {torrent.status === 4 && (
-            <span>
-              DL: <span className="text-downloading">{formatSpeed(torrent.rateDownload)}</span>
-            </span>
+            <span className="text-downloading">↓ {formatSpeed(torrent.rateDownload)}</span>
           )}
           {(torrent.status === 4 || torrent.status === 6) && (
-            <span>
-              UL: <span className="text-foreground">{formatSpeed(torrent.rateUpload)}</span>
-            </span>
+            <span>↑ {formatSpeed(torrent.rateUpload)}</span>
           )}
           <span>
-            Ratio: <span className="text-foreground">{formatRatio(torrent.uploadRatio)}</span>
+            Ratio <span className="text-foreground">{formatRatio(torrent.uploadRatio)}</span>
+            {torrent.seedRatioMode === 1 && `/${torrent.seedRatioLimit.toFixed(2)}`}
           </span>
           <span>
-            Limit:{' '}
-            <span className="text-foreground">
-              {torrent.seedRatioMode === 1 ? torrent.seedRatioLimit.toFixed(2) : '∞'}
-            </span>
-          </span>
-          <span>
-            Peers: <span className="text-foreground">{torrent.peersConnected}</span>
+            Peers <span className="text-foreground">{torrent.peersConnected}</span>
           </span>
           {torrent.percentDone < 1.0 && torrent.eta > 0 && (
             <span>
-              ETA: <span className="text-foreground">{formatETA(torrent.eta)}</span>
+              ETA <span className="text-foreground">{formatETA(torrent.eta)}</span>
             </span>
           )}
-        </div>
 
-        <div className="mt-2 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-          {isStopped ? (
-            <Button size="sm" onClick={() => start(torrent.id)}>
-              Start
+          <div className="ml-auto flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {isStopped ? (
+              <Button size="xs" onClick={() => start(torrent.id)}>
+                Start
+              </Button>
+            ) : (
+              <Button size="xs" variant="secondary" onClick={() => stop(torrent.id)}>
+                Stop
+              </Button>
+            )}
+            <Button size="xs" variant="outline" onClick={() => reannounce(torrent.id)}>
+              Reannounce
             </Button>
-          ) : (
-            <Button size="sm" variant="secondary" onClick={() => stop(torrent.id)}>
-              Stop
+            <Button size="xs" variant="outline" onClick={() => setRatioEditorOpen((v) => !v)}>
+              Set Ratio
             </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => reannounce(torrent.id)}>
-            Reannounce
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setRatioEditorOpen((v) => !v)}>
-            Set Ratio
-          </Button>
-          <Button size="sm" variant="destructive" onClick={() => onRequestRemove(torrent)}>
-            Remove
-          </Button>
+            <Button size="xs" variant="destructive" onClick={() => onRequestRemove(torrent)}>
+              Remove
+            </Button>
+          </div>
         </div>
 
         {ratioEditorOpen && (
