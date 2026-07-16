@@ -32,6 +32,10 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
       - name: Run Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v6.0.0
