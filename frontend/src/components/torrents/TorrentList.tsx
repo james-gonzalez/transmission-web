@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TorrentCard } from './TorrentCard'
+import { Button } from '@/components/ui/button'
 import { filterTorrents, type FilterKey } from '@/lib/filters'
 import type { Torrent } from '@/api/types'
+
+const PAGE_SIZE = 25
 
 interface TorrentListProps {
   torrents: Torrent[]
@@ -12,7 +15,15 @@ interface TorrentListProps {
 
 export function TorrentList({ torrents, filter, search, onRequestRemove }: TorrentListProps) {
   const [openId, setOpenId] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
   const filtered = filterTorrents(torrents, filter, search)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+
+  useEffect(() => {
+    setPage(1)
+  }, [filter, search])
 
   if (filtered.length === 0) {
     return (
@@ -27,7 +38,7 @@ export function TorrentList({ torrents, filter, search, onRequestRemove }: Torre
 
   return (
     <div className="flex flex-col gap-2">
-      {filtered.map((torrent) => (
+      {paged.map((torrent) => (
         <TorrentCard
           key={torrent.id}
           torrent={torrent}
@@ -36,6 +47,20 @@ export function TorrentList({ torrents, filter, search, onRequestRemove }: Torre
           onRequestRemove={onRequestRemove}
         />
       ))}
+
+      {totalPages > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>
+            Previous
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
