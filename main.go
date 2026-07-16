@@ -7,8 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -17,8 +17,8 @@ import (
 	"time"
 )
 
-//go:embed templates/*
-var templatesFS embed.FS
+//go:embed frontend/dist
+var frontendFS embed.FS
 
 // Version is set during build time via ldflags
 var Version = "dev"
@@ -74,22 +74,6 @@ type Torrent struct {
 
 type TorrentList struct {
 	Torrents []Torrent `json:"torrents"`
-}
-
-// libraryRatio is the aggregate seed ratio across the currently loaded
-// torrents (sum of uploadedEver / sum of downloadedEver). Unlike the daemon's
-// cumulative-stats it reflects only what's loaded right now, not torrents that
-// have since been removed. Returns 0 when nothing has been downloaded yet.
-func libraryRatio(torrents []Torrent) float64 {
-	var up, down int64
-	for _, t := range torrents {
-		up += t.UploadedEver
-		down += t.DownloadedEver
-	}
-	if down == 0 {
-		return 0
-	}
-	return float64(up) / float64(down)
 }
 
 type SessionStats struct {
@@ -611,118 +595,10 @@ func (c *TransmissionClient) SetFilesWanted(id int, indices []int, wanted bool) 
 	return err
 }
 
-// Template helper functions
-var funcMap = template.FuncMap{
-	"formatBytes": func(bytes int64) string {
-		const unit = 1024
-		if bytes < unit {
-			return fmt.Sprintf("%d B", bytes)
-		}
-		div, exp := int64(unit), 0
-		for n := bytes / unit; n >= unit; n /= unit {
-			div *= unit
-			exp++
-		}
-		return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-	},
-	"formatSpeed": func(bytesPerSec int64) string {
-		const unit = 1024
-		if bytesPerSec < unit {
-			return fmt.Sprintf("%d B/s", bytesPerSec)
-		}
-		div, exp := int64(unit), 0
-		for n := bytesPerSec / unit; n >= unit; n /= unit {
-			div *= unit
-			exp++
-		}
-		return fmt.Sprintf("%.1f %cB/s", float64(bytesPerSec)/float64(div), "KMGTPE"[exp])
-	},
-	"formatPercent": func(pct float64) string {
-		return fmt.Sprintf("%.1f%%", pct*100)
-	},
-	"formatRatio": func(ratio float64) string {
-		if ratio < 0 {
-			return "N/A"
-		}
-		return fmt.Sprintf("%.2f", ratio)
-	},
-	"formatETA": func(seconds int) string {
-		if seconds < 0 {
-			return "Unknown"
-		}
-		if seconds == 0 {
-			return "Done"
-		}
-		hours := seconds / 3600
-		minutes := (seconds % 3600) / 60
-		secs := seconds % 60
-		if hours > 0 {
-			return fmt.Sprintf("%dh %dm", hours, minutes)
-		}
-		if minutes > 0 {
-			return fmt.Sprintf("%dm %ds", minutes, secs)
-		}
-		return fmt.Sprintf("%ds", secs)
-	},
-	"statusText": func(status int) string {
-		switch status {
-		case 0:
-			return "Stopped"
-		case 1:
-			return "Queued (check)"
-		case 2:
-			return "Checking"
-		case 3:
-			return "Queued (dl)"
-		case 4:
-			return "Downloading"
-		case 5:
-			return "Queued (seed)"
-		case 6:
-			return "Seeding"
-		default:
-			return "Unknown"
-		}
-	},
-	"statusClass": func(status int) string {
-		switch status {
-		case 0:
-			return "stopped"
-		case 1, 2, 3, 5:
-			return "queued"
-		case 4:
-			return "downloading"
-		case 6:
-			return "seeding"
-		default:
-			return ""
-		}
-	},
-	"mul": func(a, b float64) float64 {
-		return a * b
-	},
-	"divf": func(a, b float64) float64 {
-		if b == 0 {
-			return 0
-		}
-		return a / b
-	},
-	"float64": func(i int64) float64 {
-		return float64(i)
-	},
-	"sub": func(a, b int64) int64 {
-		return a - b
-	},
-	"ltBytes": func(a, b int64) bool {
-		return a < b
-	},
-}
-
 // Server holds the application state
 type Server struct {
 	client      *TransmissionClient
 	feedManager *FeedManager
-	tmpl        *template.Template
 
 	cacheMu      sync.RWMutex
 	cachedPort   bool
@@ -785,72 +661,30 @@ func (s *Server) cachedFreeSpace() *FreeSpace {
 	return fs
 }
 
-func NewServer(client *TransmissionClient, feedManager *FeedManager) (*Server, error) {
-	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templatesFS, "templates/*.html")
-	if err != nil {
-		return nil, err
-	}
-
+func NewServer(client *TransmissionClient, feedManager *FeedManager) *Server {
 	return &Server{
 		client:      client,
 		feedManager: feedManager,
-		tmpl:        tmpl,
-	}, nil
+	}
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
+// newFrontendHandler serves the embedded, pre-built frontend/dist SPA. Since
+// the app is a single page with no client-side routing, any unrecognized
+// non-file path falls back to index.html instead of 404ing.
+func newFrontendHandler() (http.Handler, error) {
+	dist, err := fs.Sub(frontendFS, "frontend/dist")
+	if err != nil {
+		return nil, err
 	}
+	fileServer := http.FileServer(http.FS(dist))
 
-	// portOpen and freeSpace are cached (60s TTL) — fetch them off the hot path.
-	portOpen := s.cachedPortOpen()
-	freeSpace := s.cachedFreeSpace()
-
-	var (
-		torrents    []Torrent
-		stats       *SessionStats
-		torrentsErr error
-		statsErr    error
-		wg          sync.WaitGroup
-	)
-
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		torrents, torrentsErr = s.client.GetTorrents()
-	}()
-	go func() {
-		defer wg.Done()
-		stats, statsErr = s.client.GetSessionStats()
-	}()
-	wg.Wait()
-
-	if torrentsErr != nil {
-		http.Error(w, torrentsErr.Error(), http.StatusInternalServerError)
-		return
-	}
-	if statsErr != nil {
-		http.Error(w, statsErr.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Torrents":     torrents,
-		"Stats":        stats,
-		"PortOpen":     portOpen,
-		"FreeSpace":    freeSpace,
-		"LibraryRatio": libraryRatio(torrents),
-		"Version":      Version,
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "index.html", data); err != nil {
-		if !isClientDisconnectError(err) {
-			log.Printf("Template error: %v", err)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := fs.Stat(dist, strings.TrimPrefix(r.URL.Path, "/")); err != nil {
+			r = r.Clone(r.Context())
+			r.URL.Path = "/"
 		}
-	}
+		fileServer.ServeHTTP(w, r)
+	}), nil
 }
 
 func (s *Server) handleAPI(w http.ResponseWriter, _ *http.Request) {
@@ -1194,9 +1028,13 @@ func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request) {
 		log.Printf("stats: session info: %v", err) // non-fatal — still return transfer stats
 	}
 
+	// portOpen and freeSpace are cached (60s TTL) — fetch them off the hot path.
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"stats": stats,
-		"info":  info,
+		"stats":     stats,
+		"info":      info,
+		"version":   Version,
+		"freeSpace": s.cachedFreeSpace(),
+		"portOpen":  s.cachedPortOpen(),
 	}); err != nil {
 		log.Printf("Failed to encode response: %v", err)
 	}
@@ -1433,12 +1271,14 @@ func main() {
 		log.Fatalf("Failed to create feed manager: %v", err)
 	}
 
-	server, err := NewServer(client, feedManager)
+	server := NewServer(client, feedManager)
+
+	frontend, err := newFrontendHandler()
 	if err != nil {
 		if closeErr := feedManager.Close(); closeErr != nil {
 			log.Printf("Failed to close feed manager: %v", closeErr)
 		}
-		log.Fatalf("Failed to create server: %v", err)
+		log.Fatalf("Failed to load embedded frontend: %v", err)
 	}
 
 	gz := gzipHandler
@@ -1446,7 +1286,7 @@ func main() {
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	http.Handle("/", gz(http.HandlerFunc(server.handleIndex)))
+	http.Handle("/", gz(frontend))
 	http.Handle("/api/torrents", gz(http.HandlerFunc(server.handleAPI)))
 	http.Handle("/api/peers", gz(http.HandlerFunc(server.handlePeers)))
 	http.Handle("/api/trackers", gz(http.HandlerFunc(server.handleTrackers)))
@@ -1523,14 +1363,4 @@ func gzipHandler(next http.Handler) http.Handler {
 		w.Header().Del("Content-Length")
 		next.ServeHTTP(&gzipWriter{ResponseWriter: w, w: gz}, r)
 	})
-}
-
-func isClientDisconnectError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "broken pipe") ||
-		strings.Contains(errStr, "connection reset by peer") ||
-		strings.Contains(errStr, "write: connection reset")
 }

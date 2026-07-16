@@ -1,0 +1,86 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+:root {
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+
+  --background: #1a1a2e;
+  --foreground: #eeeeee;
+
+  --card: #1f2940;
+  --card-foreground: #eeeeee;
+
+  --popover: #1f2940;
+  --popover-foreground: #eeeeee;
+
+  --primary: #4ecca3;
+  --primary-foreground: #0f1522;
+
+  --secondary: #16213e;
+  --secondary-foreground: #eeeeee;
+
+  --muted: #16213e;
+  --muted-foreground: #b8b8b8;
+
+  --accent: #16213e;
+  --accent-foreground: #eeeeee;
+
+  --destructive: #e74c3c;
+  --destructive-foreground: #eeeeee;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #4ecca3;
+
+  --warning: #f39c12;
+  --success: #27ae60;
+  --downloading: #3498db;
+  --peers-bg: #172033;
+
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-downloading: var(--downloading);
+  --color-peers-bg: var(--peers-bg);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
