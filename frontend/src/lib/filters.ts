@@ -1,4 +1,4 @@
-import type { Torrent, TorrentStatus } from '@/api/types'
+import { STATUS, type Torrent, type TorrentStatus } from '@/api/types'
 
 export type FilterKey = 'all' | 'downloading' | 'seeding' | 'stopped' | 'queued'
 
@@ -11,10 +11,10 @@ export const FILTERS: { key: FilterKey; label: string }[] = [
 ]
 
 const STATUS_BY_FILTER: Record<Exclude<FilterKey, 'all'>, TorrentStatus[]> = {
-  downloading: [4],
-  seeding: [6],
-  stopped: [0],
-  queued: [1, 2, 3, 5],
+  downloading: [STATUS.DOWNLOADING],
+  seeding: [STATUS.SEEDING],
+  stopped: [STATUS.STOPPED],
+  queued: [STATUS.QUEUED_CHECK, STATUS.CHECKING, STATUS.QUEUED_DOWNLOAD, STATUS.QUEUED_SEED],
 }
 
 export function matchesFilter(status: TorrentStatus, filter: FilterKey): boolean {

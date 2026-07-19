@@ -1,22 +1,15 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Magnet, FolderOpen, Rss } from 'lucide-react'
+import { Magnet, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { addMagnet, addTorrentFiles } from '@/api/client'
-import { useTorrentActions } from '@/hooks/useTorrentActions'
 
-interface AddTorrentFormProps {
-  rssView: boolean
-  onToggleRss: () => void
-}
-
-export function AddTorrentForm({ rssView, onToggleRss }: AddTorrentFormProps) {
+export function AddTorrentForm() {
   const [magnet, setMagnet] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { reannounceAll } = useTorrentActions()
 
   const submitMagnet = async () => {
     if (!magnet.trim()) return
@@ -61,7 +54,14 @@ export function AddTorrentForm({ rssView, onToggleRss }: AddTorrentFormProps) {
           className="min-w-64 flex-1"
           disabled={submitting}
         />
-        <Button size="icon" variant="secondary" onClick={submitMagnet} disabled={submitting} title="Add magnet link">
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={submitMagnet}
+          disabled={submitting}
+          aria-label="Add magnet link"
+          title="Add magnet link"
+        >
           <Magnet />
         </Button>
         <Button
@@ -69,17 +69,12 @@ export function AddTorrentForm({ rssView, onToggleRss }: AddTorrentFormProps) {
           variant="secondary"
           onClick={() => fileInputRef.current?.click()}
           disabled={submitting}
+          aria-label="Upload .torrent file(s)"
           title="Upload .torrent file(s)"
         >
           <FolderOpen />
         </Button>
         <input ref={fileInputRef} type="file" accept=".torrent" multiple className="hidden" onChange={onFilesSelected} />
-        <Button variant="outline" onClick={() => reannounceAll()}>
-          Reannounce All
-        </Button>
-        <Button variant={rssView ? 'default' : 'outline'} className="ml-auto" onClick={onToggleRss}>
-          <Rss /> RSS Feeds
-        </Button>
       </CardContent>
     </Card>
   )
