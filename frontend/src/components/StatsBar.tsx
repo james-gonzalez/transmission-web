@@ -32,17 +32,11 @@ export function StatsBar({ stats, libraryRatio, freeSpace, portOpen }: StatsBarP
         valueClassName="text-foreground"
       />
       {freeSpace && (
-        <>
-          <Stat
-            label="Disk"
-            value={`${formatBytes(freeSpace.total_size - freeSpace['size-bytes'])} / ${formatBytes(freeSpace.total_size)}`}
-          />
-          <Stat
-            label="Free"
-            value={formatBytes(freeSpace['size-bytes'])}
-            valueClassName={freeSpace['size-bytes'] < TEN_GIB ? 'text-destructive' : undefined}
-          />
-        </>
+        <Stat
+          label="Free"
+          value={`${formatBytes(freeSpace['size-bytes'])} / ${formatBytes(freeSpace.total_size)}`}
+          valueClassName={freeSpace['size-bytes'] < TEN_GIB ? 'text-destructive' : undefined}
+        />
       )}
       {portOpen !== null && (
         <span

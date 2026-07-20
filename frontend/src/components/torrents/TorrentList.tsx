@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { TorrentCard } from './TorrentCard'
 import { Button } from '@/components/ui/button'
 import { filterTorrents, type FilterKey } from '@/lib/filters'
+import { sortTorrents, type SortKey } from '@/lib/sort'
 import type { Torrent } from '@/api/types'
 
 const PAGE_SIZE = 25
@@ -10,20 +11,28 @@ interface TorrentListProps {
   torrents: Torrent[]
   filter: FilterKey
   search: string
+  sort: SortKey
   onRequestRemove: (torrent: Torrent) => void
 }
 
-export function TorrentList({ torrents, filter, search, onRequestRemove }: TorrentListProps) {
+export function TorrentList({ torrents, filter, search, sort, onRequestRemove }: TorrentListProps) {
   const [openId, setOpenId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
-  const filtered = filterTorrents(torrents, filter, search)
+  const filtered = sortTorrents(filterTorrents(torrents, filter, search), sort)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   useEffect(() => {
     setPage(1)
-  }, [filter, search])
+  }, [filter, search, sort])
+
+  // Collapse the expanded panel if its torrent scrolled off the visible page.
+  useEffect(() => {
+    if (openId !== null && !paged.some((t) => t.id === openId)) {
+      setOpenId(null)
+    }
+  }, [openId, paged])
 
   if (filtered.length === 0) {
     return (

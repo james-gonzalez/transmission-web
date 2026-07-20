@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Rss } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/Header'
 import { AddTorrentForm } from '@/components/AddTorrentForm'
 import { FilterBar } from '@/components/FilterBar'
@@ -14,20 +17,24 @@ import { useTorrentActions } from '@/hooks/useTorrentActions'
 import { getStats } from '@/api/client'
 import { libraryRatio } from '@/lib/format'
 import type { FilterKey } from '@/lib/filters'
+import type { SortKey } from '@/lib/sort'
 import type { FreeSpace, Torrent } from '@/api/types'
 
 const META_REFRESH_MS = 60_000
 
 function App() {
   const { torrents, stats, status } = useTorrentStream()
-  const { remove } = useTorrentActions()
+  const { remove, startAll, stopAll, reannounceAll } = useTorrentActions()
 
   const [filter, setFilter] = useState<FilterKey>('all')
   const [search, setSearch] = useState('')
-  const [rssView, setRssView] = useState(false)
+  const [sort, setSort] = useState<SortKey>('added')
+  const [tab, setTab] = useState('torrents')
   const [removeTarget, setRemoveTarget] = useState<Torrent | null>(null)
   const [statsOpen, setStatsOpen] = useState(false)
   const [globalRatioOpen, setGlobalRatioOpen] = useState(false)
+
+  const allIds = torrents.map((t) => t.id)
 
   const [version, setVersion] = useState('dev')
   const [freeSpace, setFreeSpace] = useState<FreeSpace | null>(null)
@@ -57,16 +64,43 @@ function App() {
         onOpenGlobalRatio={() => setGlobalRatioOpen(true)}
       />
 
-      <AddTorrentForm rssView={rssView} onToggleRss={() => setRssView((v) => !v)} />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as string)}>
+        <TabsList>
+          <TabsTrigger value="torrents">Torrents</TabsTrigger>
+          <TabsTrigger value="rss">
+            <Rss /> RSS Feeds
+          </TabsTrigger>
+        </TabsList>
 
-      {rssView ? (
-        <FeedsSection />
-      ) : (
-        <>
-          <FilterBar torrents={torrents} filter={filter} onFilterChange={setFilter} search={search} onSearchChange={setSearch} />
-          <TorrentList torrents={torrents} filter={filter} search={search} onRequestRemove={setRemoveTarget} />
-        </>
-      )}
+        <TabsContent value="torrents" className="flex flex-col gap-4">
+          <AddTorrentForm />
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => startAll(allIds)}>
+              Start All
+            </Button>
+            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => stopAll(allIds)}>
+              Stop All
+            </Button>
+            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => reannounceAll()}>
+              Reannounce All
+            </Button>
+          </div>
+          <FilterBar
+            torrents={torrents}
+            filter={filter}
+            onFilterChange={setFilter}
+            search={search}
+            onSearchChange={setSearch}
+            sort={sort}
+            onSortChange={setSort}
+          />
+          <TorrentList torrents={torrents} filter={filter} search={search} sort={sort} onRequestRemove={setRemoveTarget} />
+        </TabsContent>
+
+        <TabsContent value="rss">
+          <FeedsSection />
+        </TabsContent>
+      </Tabs>
 
       <footer className="py-6 text-center text-xs text-muted-foreground">
         Created by{' '}

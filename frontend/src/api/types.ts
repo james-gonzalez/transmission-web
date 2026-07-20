@@ -3,6 +3,16 @@
 export type TorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6
 // 0=stopped 1=queued-check 2=checking 3=queued-download 4=downloading 5=queued-seed 6=seeding
 
+export const STATUS = {
+  STOPPED: 0,
+  QUEUED_CHECK: 1,
+  CHECKING: 2,
+  QUEUED_DOWNLOAD: 3,
+  DOWNLOADING: 4,
+  QUEUED_SEED: 5,
+  SEEDING: 6,
+} as const satisfies Record<string, TorrentStatus>
+
 export interface Torrent {
   id: number
   name: string
