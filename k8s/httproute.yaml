@@ -4,8 +4,10 @@ metadata:
   name: transmission-web-route
   namespace: default
 spec:
+  # Replace with the hostname you want to serve the UI on.
   hostnames:
-  - transmission-web.lan
+  - transmission-web.example.com
+  # Replace with the name/namespace of the Gateway in your cluster.
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
