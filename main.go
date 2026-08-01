@@ -1256,7 +1256,7 @@ func (s *Server) handleFeedCheckLogs(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	config := Config{
-		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://192.168.86.61:9091/transmission/rpc"),
+		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://localhost:9091/transmission/rpc"),
 		TransmissionUser: getEnv("TRANSMISSION_USER", "transmission"),
 		TransmissionPass: getEnv("TRANSMISSION_PASS", ""),
 		ListenAddr:       getEnv("LISTEN_ADDR", ":8080"),
