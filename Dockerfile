@@ -37,8 +37,17 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/transmission-web ./transmission-web
 
-# Create directory for database
-RUN mkdir -p /data
+# Run as an unprivileged user. UID/GID 1000 matches the typical desktop user, so
+# a bind-mounted host directory for /data is writable without extra setup.
+RUN addgroup -g 1000 app \
+    && adduser -u 1000 -G app -D -H app \
+    && mkdir -p /data \
+    && chown app:app /data
+
+# Feed database lives here; mount a volume to persist it across container recreation.
+VOLUME ["/data"]
+
+USER app
 
 EXPOSE 8080
 

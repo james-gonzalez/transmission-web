@@ -17,7 +17,7 @@ Thank you for your interest in contributing to Transmission Web!
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later (see `go.mod`)
 - Node.js 20 or later (for the `frontend/` SPA)
 - Docker (optional, for container testing)
 
@@ -63,7 +63,7 @@ export LISTEN_ADDR=":8080"
 ```bash
 docker build -t transmission-web .
 docker run -p 8080:8080 \
-  -e TRANSMISSION_URL="http://192.168.86.61:9091/transmission/rpc" \
+  -e TRANSMISSION_URL="http://transmission.example.com:9091/transmission/rpc" \
   -e TRANSMISSION_USER="transmission" \
   -e TRANSMISSION_PASS="your-password" \
   transmission-web
@@ -142,10 +142,20 @@ BREAKING CHANGE: All RPC methods now require context.Context as first parameter
 
 ## Testing
 
-While we don't currently have extensive tests, we welcome contributions that add test coverage:
+There are currently no Go tests in the repository, so `go test ./...` passes
+trivially. Contributions that add coverage are very welcome — the RPC client,
+the RSS pattern matching in `rss.go`, and the HTTP handlers are the highest-value
+places to start.
 
 ```bash
 go test -v ./...
+```
+
+Linting runs in CI and should pass locally before you open a PR:
+
+```bash
+golangci-lint run
+cd frontend && npm run lint
 ```
 
 ## Questions?

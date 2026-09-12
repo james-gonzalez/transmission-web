@@ -6,7 +6,8 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: longhorn
+  # Uncomment and set to match your cluster. Omitted, the default StorageClass is used.
+  # storageClassName: longhorn
   resources:
     requests:
       storage: 100Mi

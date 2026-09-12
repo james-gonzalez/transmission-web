@@ -15,6 +15,12 @@ spec:
       labels:
         app: transmission-web
     spec:
+      # The image runs as UID/GID 1000; fsGroup makes the mounted PVC writable by it.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: transmission-web
         image: ghcr.io/james-gonzalez/transmission-web:latest

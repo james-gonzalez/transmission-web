@@ -1,0 +1,19 @@
+# Copy .env.example to .env and fill it in, then: docker compose up -d
+services:
+  transmission-web:
+    image: ghcr.io/james-gonzalez/transmission-web:latest
+    container_name: transmission-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TRANSMISSION_URL: "${TRANSMISSION_URL:?set TRANSMISSION_URL in .env}"
+      TRANSMISSION_USER: "${TRANSMISSION_USER:-transmission}"
+      TRANSMISSION_PASS: "${TRANSMISSION_PASS:-}"
+    volumes:
+      # Persists the RSS feed database. Without this, feeds are lost when the
+      # container is recreated.
+      - transmission-web-data:/data
+
+volumes:
+  transmission-web-data:

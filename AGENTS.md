@@ -1,1 +1,0 @@
-/Users/jamesgonzalez/.claude/CLAUDE.md
