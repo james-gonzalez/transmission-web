@@ -12,7 +12,7 @@ compiled into the binary, so deployment is one file with no external assets.
 
 - **Live dashboard** — torrent state, progress, speeds and ETA stream to the browser over Server-Sent Events, pushed once per second with no polling or page reloads
 - **Torrent management** — add by magnet link or `.torrent` upload, start, stop, remove (with or without data), and force a tracker reannounce
-- **Bulk actions** — select multiple torrents and start, stop, reannounce or remove them in one step
+- **Bulk actions** — start, stop or reannounce every torrent matching the current filter and search in one step
 - **Filter, sort and paginate** — narrow by status or name and sort by any column; large torrent lists are paginated
 - **Detail panels** — per-torrent peers (IP, client, flags, rates), trackers, and a file list where individual files can be deselected mid-download
 - **Seed ratio control** — set a ratio limit per torrent or change the global default

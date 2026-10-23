@@ -13,6 +13,9 @@ interface RatioEditorProps {
 export function RatioEditor({ seedRatioLimit, seedRatioMode, onSave, onClose }: RatioEditorProps) {
   const [ratio, setRatio] = useState(seedRatioMode === 1 ? String(seedRatioLimit) : '')
   const [mode, setMode] = useState(String(seedRatioMode))
+  const value = parseFloat(ratio)
+  // Mode 1 stops seeding at the ratio, so a blank or zero ratio would stop it immediately.
+  const valid = mode !== '1' || (Number.isFinite(value) && value > 0)
 
   return (
     <div
@@ -38,7 +41,7 @@ export function RatioEditor({ seedRatioLimit, seedRatioMode, onSave, onClose }: 
           <SelectItem value="0">Use global</SelectItem>
         </SelectContent>
       </Select>
-      <Button size="sm" onClick={() => onSave(parseFloat(ratio) || 0, parseInt(mode, 10))}>
+      <Button size="sm" disabled={!valid} onClick={() => onSave(Number.isFinite(value) ? value : 0, parseInt(mode, 10))}>
         Save
       </Button>
       <Button size="sm" variant="ghost" onClick={onClose}>

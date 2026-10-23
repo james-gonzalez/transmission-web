@@ -3,6 +3,10 @@ import { toast } from 'sonner'
 import { postAction } from '@/api/client'
 import type { Action } from '@/api/types'
 
+function plural(count: number): string {
+  return count === 1 ? '1 torrent' : `${count} torrents`
+}
+
 export function useTorrentActions() {
   const run = useCallback(async (action: Action, okMessage?: string) => {
     try {
@@ -28,17 +32,16 @@ export function useTorrentActions() {
   return {
     start: (id: number) => run({ action: 'start', id }),
     stop: (id: number) => run({ action: 'stop', id }),
-    startAll: (ids: number[]) =>
-      runMany(ids.map((id) => ({ action: 'start', id })), 'Started all torrents'),
-    stopAll: (ids: number[]) =>
-      runMany(ids.map((id) => ({ action: 'stop', id })), 'Stopped all torrents'),
+    startMany: (ids: number[]) =>
+      runMany(ids.map((id) => ({ action: 'start', id })), `Started ${plural(ids.length)}`),
+    stopMany: (ids: number[]) =>
+      runMany(ids.map((id) => ({ action: 'stop', id })), `Stopped ${plural(ids.length)}`),
     remove: (id: number, deleteData: boolean) =>
       run({ action: 'remove', id, deleteData }, 'Torrent removed'),
     reannounce: (id: number) => run({ action: 'reannounce', id }, 'Reannounce requested'),
-    reannounceAll: () => run({ action: 'reannounce-all' }, 'Reannounce requested for all torrents'),
+    reannounceMany: (ids: number[]) =>
+      runMany(ids.map((id) => ({ action: 'reannounce', id })), `Reannounce requested for ${plural(ids.length)}`),
     setRatio: (id: number, ratio: number, ratioMode: number) =>
       run({ action: 'set-ratio', id, ratio, ratioMode }, 'Ratio updated'),
-    setGlobalRatio: (ratio: number, enabled: boolean) =>
-      run({ action: 'set-global-ratio', ratio, enabled }),
   }
 }

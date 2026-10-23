@@ -59,7 +59,7 @@ export function FilesPanel({ torrentId }: { torrentId: number }) {
           </Button>
         </div>
       </div>
-      <Table>
+      <Table className="tabular-nums">
         <TableHeader>
           <TableRow>
             <TableHead className="w-8">

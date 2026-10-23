@@ -11,12 +11,11 @@ import { FeedsSection } from '@/components/rss/FeedsSection'
 import { RemoveTorrentDialog } from '@/components/RemoveTorrentDialog'
 import { StatsDialog } from '@/components/StatsDialog'
 import { GlobalRatioDialog } from '@/components/GlobalRatioDialog'
-import { ConnectionIndicator } from '@/components/ConnectionIndicator'
 import { useTorrentStream } from '@/hooks/useTorrentStream'
 import { useTorrentActions } from '@/hooks/useTorrentActions'
 import { getStats } from '@/api/client'
 import { libraryRatio } from '@/lib/format'
-import type { FilterKey } from '@/lib/filters'
+import { filterTorrents, type FilterKey } from '@/lib/filters'
 import type { SortKey } from '@/lib/sort'
 import type { FreeSpace, Torrent } from '@/api/types'
 
@@ -24,7 +23,7 @@ const META_REFRESH_MS = 60_000
 
 function App() {
   const { torrents, stats, status } = useTorrentStream()
-  const { remove, startAll, stopAll, reannounceAll } = useTorrentActions()
+  const { remove, startMany, stopMany, reannounceMany } = useTorrentActions()
 
   const [filter, setFilter] = useState<FilterKey>('all')
   const [search, setSearch] = useState('')
@@ -34,7 +33,9 @@ function App() {
   const [statsOpen, setStatsOpen] = useState(false)
   const [globalRatioOpen, setGlobalRatioOpen] = useState(false)
 
-  const allIds = torrents.map((t) => t.id)
+  // Bulk actions target whatever the filter and search currently show.
+  const visibleIds = filterTorrents(torrents, filter, search).map((t) => t.id)
+  const bulkScope = visibleIds.length === torrents.length ? 'All' : `${visibleIds.length} Shown`
 
   const [version, setVersion] = useState('dev')
   const [freeSpace, setFreeSpace] = useState<FreeSpace | null>(null)
@@ -56,6 +57,7 @@ function App() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 p-5">
       <Header
+        status={status}
         stats={stats}
         libraryRatio={libraryRatio(torrents)}
         freeSpace={freeSpace}
@@ -75,14 +77,14 @@ function App() {
         <TabsContent value="torrents" className="flex flex-col gap-4">
           <AddTorrentForm />
           <div className="flex flex-wrap gap-1.5">
-            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => startAll(allIds)}>
-              Start All
+            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => startMany(visibleIds)}>
+              Start {bulkScope}
             </Button>
-            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => stopAll(allIds)}>
-              Stop All
+            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => stopMany(visibleIds)}>
+              Stop {bulkScope}
             </Button>
-            <Button size="sm" variant="outline" disabled={allIds.length === 0} onClick={() => reannounceAll()}>
-              Reannounce All
+            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => reannounceMany(visibleIds)}>
+              Reannounce {bulkScope}
             </Button>
           </div>
           <FilterBar
@@ -125,7 +127,6 @@ function App() {
       />
       <StatsDialog open={statsOpen} onClose={() => setStatsOpen(false)} />
       <GlobalRatioDialog open={globalRatioOpen} onClose={() => setGlobalRatioOpen(false)} />
-      <ConnectionIndicator status={status} />
       <Toaster />
     </div>
   )

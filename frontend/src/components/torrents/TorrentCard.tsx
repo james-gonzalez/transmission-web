@@ -71,7 +71,7 @@ export function TorrentCard({ torrent, isOpen, onToggleOpen, onRequestRemove }: 
             />
           </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground tabular-nums">
             <span className="text-foreground">{formatPercent(torrent.percentDone)}</span>
             <span className="text-foreground">{formatBytes(torrent.sizeWhenDone)}</span>
             {torrent.status === STATUS.DOWNLOADING && (

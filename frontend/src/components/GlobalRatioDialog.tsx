@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { getStats } from '@/api/client'
-import { useTorrentActions } from '@/hooks/useTorrentActions'
+import { getStats, postAction } from '@/api/client'
 
 interface GlobalRatioDialogProps {
   open: boolean
@@ -13,7 +12,6 @@ interface GlobalRatioDialogProps {
 }
 
 export function GlobalRatioDialog({ open, onClose }: GlobalRatioDialogProps) {
-  const { setGlobalRatio } = useTorrentActions()
   const [enabled, setEnabled] = useState(false)
   const [ratio, setRatio] = useState('')
   const [status, setStatus] = useState('')
@@ -29,10 +27,13 @@ export function GlobalRatioDialog({ open, onClose }: GlobalRatioDialogProps) {
     })
   }, [open])
 
+  const value = parseFloat(ratio)
+  const valid = !enabled || (Number.isFinite(value) && value > 0)
+
   const apply = async () => {
     setStatus('Saving…')
     try {
-      await setGlobalRatio(parseFloat(ratio) || 0, enabled)
+      await postAction({ action: 'set-global-ratio', ratio: Number.isFinite(value) ? value : 0, enabled })
       setStatus('Saved')
       setTimeout(onClose, 600)
     } catch (err) {
@@ -63,7 +64,9 @@ export function GlobalRatioDialog({ open, onClose }: GlobalRatioDialogProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={apply}>Save</Button>
+          <Button onClick={apply} disabled={!valid}>
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

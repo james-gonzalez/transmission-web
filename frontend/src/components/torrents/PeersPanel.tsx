@@ -27,7 +27,7 @@ export function PeersPanel({ torrentId }: { torrentId: number }) {
   if (peers.length === 0) return <p className="p-4 text-sm text-muted-foreground">No peers connected</p>
 
   return (
-    <Table>
+    <Table className="tabular-nums">
       <TableHeader>
         <TableRow>
           <TableHead>Address</TableHead>

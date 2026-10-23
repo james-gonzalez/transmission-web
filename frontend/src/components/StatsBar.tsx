@@ -15,7 +15,7 @@ function Stat({ label, value, valueClassName }: { label: string; value: string; 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-sm">
       <span className="text-muted-foreground">{label}:</span>
-      <span className={cn('font-semibold text-primary', valueClassName)}>{value}</span>
+      <span className={cn('font-semibold text-primary tabular-nums', valueClassName)}>{value}</span>
     </div>
   )
 }
