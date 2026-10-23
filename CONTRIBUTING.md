@@ -143,9 +143,8 @@ BREAKING CHANGE: All RPC methods now require context.Context as first parameter
 ## Testing
 
 There are currently no Go tests in the repository, so `go test ./...` passes
-trivially. Contributions that add coverage are very welcome — the RPC client,
-the RSS pattern matching in `rss.go`, and the HTTP handlers are the highest-value
-places to start.
+trivially. Contributions that add coverage are very welcome — the RPC client
+and the HTTP handlers are the highest-value places to start.
 
 ```bash
 go test -v ./...

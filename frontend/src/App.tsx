@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Rss } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Header } from '@/components/Header'
 import { AddTorrentForm } from '@/components/AddTorrentForm'
 import { FilterBar } from '@/components/FilterBar'
 import { BulkActionsMenu } from '@/components/BulkActionsMenu'
 import { TorrentList } from '@/components/torrents/TorrentList'
-import { FeedsSection } from '@/components/rss/FeedsSection'
 import { RemoveTorrentDialog } from '@/components/RemoveTorrentDialog'
 import { StatsDialog } from '@/components/StatsDialog'
 import { GlobalRatioDialog } from '@/components/GlobalRatioDialog'
@@ -28,7 +25,6 @@ function App() {
   const [filter, setFilter] = useState<FilterKey>('all')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('added')
-  const [tab, setTab] = useState('torrents')
   const [removeTarget, setRemoveTarget] = useState<Torrent | null>(null)
   const [statsOpen, setStatsOpen] = useState(false)
   const [globalRatioOpen, setGlobalRatioOpen] = useState(false)
@@ -64,33 +60,18 @@ function App() {
         onOpenGlobalRatio={() => setGlobalRatioOpen(true)}
       />
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as string)}>
-        <TabsList>
-          <TabsTrigger value="torrents">Torrents</TabsTrigger>
-          <TabsTrigger value="rss">
-            <Rss /> RSS Feeds
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="torrents" className="flex flex-col gap-4">
-          <AddTorrentForm />
-          <FilterBar
-            torrents={torrents}
-            filter={filter}
-            onFilterChange={setFilter}
-            search={search}
-            onSearchChange={setSearch}
-            sort={sort}
-            onSortChange={setSort}
-            actions={<BulkActionsMenu ids={visibleIds} total={torrents.length} />}
-          />
-          <TorrentList torrents={torrents} filter={filter} search={search} sort={sort} onRequestRemove={setRemoveTarget} />
-        </TabsContent>
-
-        <TabsContent value="rss">
-          <FeedsSection />
-        </TabsContent>
-      </Tabs>
+      <AddTorrentForm />
+      <FilterBar
+        torrents={torrents}
+        filter={filter}
+        onFilterChange={setFilter}
+        search={search}
+        onSearchChange={setSearch}
+        sort={sort}
+        onSortChange={setSort}
+        actions={<BulkActionsMenu ids={visibleIds} total={torrents.length} />}
+      />
+      <TorrentList torrents={torrents} filter={filter} search={search} sort={sort} onRequestRemove={setRemoveTarget} />
 
       <footer className="py-6 text-center text-xs text-muted-foreground">
         Created by{' '}
