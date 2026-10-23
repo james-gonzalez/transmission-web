@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -402,6 +403,33 @@ func TestFrontendHandlerFallsBackToIndex(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/favicon.svg", nil))
 	if !strings.Contains(rec.Header().Get("Content-Type"), "svg") {
 		t.Errorf("favicon Content-Type = %q, want an svg type", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestFrontendHandlerCachesHashedAssets(t *testing.T) {
+	h, err := newFrontendHandler()
+	if err != nil {
+		t.Fatalf("newFrontendHandler: %v (build the frontend first)", err)
+	}
+	assets, err := fs.ReadDir(frontendFS, "frontend/dist/assets")
+	if err != nil || len(assets) == 0 {
+		t.Fatalf("no built assets to test against: %v", err)
+	}
+
+	cacheControl := func(path string) string {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		return rec.Header().Get("Cache-Control")
+	}
+
+	if got := cacheControl("/assets/" + assets[0].Name()); !strings.Contains(got, "immutable") {
+		t.Errorf("hashed asset Cache-Control = %q, want immutable", got)
+	}
+	// index.html and SPA fallbacks must stay revalidated so new releases load.
+	for _, path := range []string{"/", "/some/client/route", "/assets/missing.js"} {
+		if got := cacheControl(path); got != "" {
+			t.Errorf("%s Cache-Control = %q, want none", path, got)
+		}
 	}
 }
 

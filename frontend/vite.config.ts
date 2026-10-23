@@ -11,6 +11,21 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Libraries change far less often than the app, so keep them in their own
+        // chunks: browsers keep them cached across releases and only the small app
+        // chunk is re-downloaded.
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'vendor', test: /node_modules[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {
