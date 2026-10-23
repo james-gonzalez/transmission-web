@@ -597,8 +597,7 @@ func (c *TransmissionClient) SetFilesWanted(id int, indices []int, wanted bool) 
 
 // Server holds the application state
 type Server struct {
-	client      *TransmissionClient
-	feedManager *FeedManager
+	client *TransmissionClient
 
 	cacheMu      sync.RWMutex
 	cachedPort   bool
@@ -661,10 +660,9 @@ func (s *Server) cachedFreeSpace() *FreeSpace {
 	return fs
 }
 
-func NewServer(client *TransmissionClient, feedManager *FeedManager) *Server {
+func NewServer(client *TransmissionClient) *Server {
 	return &Server{
-		client:      client,
-		feedManager: feedManager,
+		client: client,
 	}
 }
 
@@ -1040,220 +1038,6 @@ func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func (s *Server) handleGetFeeds(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	feeds, err := s.feedManager.GetFeeds()
-	if err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"feeds": feeds,
-	}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleAddFeed(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	var feed Feed
-	if err := json.NewDecoder(r.Body).Decode(&feed); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := s.feedManager.AddFeed(&feed); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(feed); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleUpdateFeed(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	var feed Feed
-	if err := json.NewDecoder(r.Body).Decode(&feed); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := s.feedManager.UpdateFeed(&feed); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleDeleteFeed(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
-			log.Printf("Failed to encode error response: %v", err)
-		}
-		return
-	}
-
-	var id int
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := s.feedManager.DeleteFeed(id); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleCheckFeed(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
-			log.Printf("Failed to encode error response: %v", err)
-		}
-		return
-	}
-
-	var id int
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	// Check feed in a goroutine to not block the HTTP response
-	go func() {
-		if err := s.feedManager.CheckFeed(id); err != nil {
-			log.Printf("Error checking feed: %v", err)
-		}
-	}()
-
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": "checking"}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleFeedHistory(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
-			log.Printf("Failed to encode error response: %v", err)
-		}
-		return
-	}
-
-	var id int
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	items, err := s.feedManager.GetDownloadedItems(id, 100)
-	if err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"items": items,
-	}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
-func (s *Server) handleFeedCheckLogs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
-		if err := json.NewEncoder(w).Encode(map[string]string{"error": "missing id parameter"}); err != nil {
-			log.Printf("Failed to encode error response: %v", err)
-		}
-		return
-	}
-
-	var id int
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": "invalid id"}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	logs, err := s.feedManager.GetFeedCheckLogs(id, 20)
-	if err != nil {
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-			log.Printf("Failed to encode error response: %v", encErr)
-		}
-		return
-	}
-
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"logs": logs,
-	}); err != nil {
-		log.Printf("Failed to encode response: %v", err)
-	}
-}
-
 func main() {
 	config := Config{
 		TransmissionURL:  getEnv("TRANSMISSION_URL", "http://localhost:9091/transmission/rpc"),
@@ -1264,20 +1048,10 @@ func main() {
 
 	client := NewTransmissionClient(config.TransmissionURL, config.TransmissionUser, config.TransmissionPass)
 
-	// Initialize RSS feed manager
-	dbPath := getEnv("DB_PATH", "./feeds.db")
-	feedManager, err := NewFeedManager(dbPath, client)
-	if err != nil {
-		log.Fatalf("Failed to create feed manager: %v", err)
-	}
-
-	server := NewServer(client, feedManager)
+	server := NewServer(client)
 
 	frontend, err := newFrontendHandler()
 	if err != nil {
-		if closeErr := feedManager.Close(); closeErr != nil {
-			log.Printf("Failed to close feed manager: %v", closeErr)
-		}
 		log.Fatalf("Failed to load embedded frontend: %v", err)
 	}
 
@@ -1297,18 +1071,8 @@ func main() {
 	http.Handle("/api/add", gz(http.HandlerFunc(server.handleAdd)))
 	http.Handle("/api/action", gz(http.HandlerFunc(server.handleAction)))
 
-	// RSS feed endpoints
-	http.Handle("/api/feeds", gz(http.HandlerFunc(server.handleGetFeeds)))
-	http.Handle("/api/feeds/add", gz(http.HandlerFunc(server.handleAddFeed)))
-	http.Handle("/api/feeds/update", gz(http.HandlerFunc(server.handleUpdateFeed)))
-	http.Handle("/api/feeds/delete", gz(http.HandlerFunc(server.handleDeleteFeed)))
-	http.Handle("/api/feeds/check", gz(http.HandlerFunc(server.handleCheckFeed)))
-	http.Handle("/api/feeds/history", gz(http.HandlerFunc(server.handleFeedHistory)))
-	http.Handle("/api/feeds/logs", gz(http.HandlerFunc(server.handleFeedCheckLogs)))
-
 	log.Printf("Starting server on %s", config.ListenAddr)
 	log.Printf("Connecting to Transmission at %s", config.TransmissionURL)
-	log.Printf("RSS feed database: %s", dbPath)
 
 	// Create HTTP server with timeouts for security
 	srv := &http.Server{
@@ -1319,13 +1083,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Start RSS feed polling after server is configured and ready to serve
-	feedManager.Start()
-
 	if err := srv.ListenAndServe(); err != nil {
-		if closeErr := feedManager.Close(); closeErr != nil {
-			log.Printf("Failed to close feed manager: %v", closeErr)
-		}
 		log.Fatalf("Server failed: %v", err)
 	}
 }

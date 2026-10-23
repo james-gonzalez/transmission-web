@@ -10,10 +10,3 @@ services:
       TRANSMISSION_URL: "${TRANSMISSION_URL:?set TRANSMISSION_URL in .env}"
       TRANSMISSION_USER: "${TRANSMISSION_USER:-transmission}"
       TRANSMISSION_PASS: "${TRANSMISSION_PASS:-}"
-    volumes:
-      # Persists the RSS feed database. Without this, feeds are lost when the
-      # container is recreated.
-      - transmission-web-data:/data
-
-volumes:
-  transmission-web-data:

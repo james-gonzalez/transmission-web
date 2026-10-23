@@ -1,7 +1,5 @@
 import type {
   Action,
-  Feed,
-  FeedCheckLog,
   FreeSpace,
   Peer,
   SessionInfo,
@@ -88,30 +86,4 @@ export function addTorrentFiles(files: FileList) {
 
 export function postAction(action: Action) {
   return apiFetch<{ status: string }>('/api/action', jsonPost(action))
-}
-
-export async function getFeeds() {
-  const data = await apiFetch<{ feeds: Feed[] | null }>('/api/feeds')
-  return { feeds: orEmpty(data.feeds) }
-}
-
-export function addFeed(feed: Omit<Feed, 'id' | 'lastChecked' | 'lastError' | 'matchCount'>) {
-  return apiFetch<Feed>('/api/feeds/add', jsonPost(feed))
-}
-
-export function updateFeed(feed: Omit<Feed, 'lastChecked' | 'lastError' | 'matchCount'>) {
-  return apiFetch<{ status: string }>('/api/feeds/update', jsonPost(feed))
-}
-
-export function deleteFeed(id: number) {
-  return apiFetch<{ status: string }>(`/api/feeds/delete?id=${id}`, { method: 'POST' })
-}
-
-export function checkFeed(id: number) {
-  return apiFetch<{ status: string }>(`/api/feeds/check?id=${id}`, { method: 'POST' })
-}
-
-export async function getFeedLogs(id: number) {
-  const data = await apiFetch<{ logs: FeedCheckLog[] | null }>(`/api/feeds/logs?id=${id}`)
-  return { logs: orEmpty(data.logs) }
 }

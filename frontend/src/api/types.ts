@@ -1,4 +1,4 @@
-// Mirrors the JSON shapes returned by the Go backend (main.go / rss.go).
+// Mirrors the JSON shapes returned by the Go backend (main.go).
 
 export type TorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6
 // 0=stopped 1=queued-check 2=checking 3=queued-download 4=downloading 5=queued-seed 6=seeding
@@ -122,37 +122,6 @@ export type Action =
   | { action: 'reannounce-all' }
   | { action: 'set-ratio'; id: number; ratio: number; ratioMode: number }
   | { action: 'set-global-ratio'; ratio: number; enabled: boolean }
-
-export interface Feed {
-  id: number
-  name: string
-  url: string
-  pattern: string
-  enabled: boolean
-  checkInterval: number
-  lastChecked: string
-  lastError: string
-  matchCount: number
-}
-
-export interface DownloadedItem {
-  id: number
-  feedId: number
-  itemGuid: string
-  itemTitle: string
-  itemLink: string
-  downloadedAt: string
-}
-
-export interface FeedCheckLog {
-  id: number
-  feedId: number
-  checkedAt: string
-  itemsFound: number
-  itemsMatched: number
-  itemsDownloaded: number
-  sampleTitles: string
-}
 
 export interface StreamPayload {
   torrents: Torrent[] | null

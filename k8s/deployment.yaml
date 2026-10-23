@@ -15,12 +15,10 @@ spec:
       labels:
         app: transmission-web
     spec:
-      # The image runs as UID/GID 1000; fsGroup makes the mounted PVC writable by it.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-        fsGroup: 1000
       containers:
       - name: transmission-web
         image: ghcr.io/james-gonzalez/transmission-web:latest
@@ -44,11 +42,6 @@ spec:
               key: password
         - name: LISTEN_ADDR
           value: ":8080"
-        - name: DB_PATH
-          value: "/data/feeds.db"
-        volumeMounts:
-        - name: data
-          mountPath: /data
         resources:
           requests:
             memory: "64Mi"
@@ -72,7 +65,3 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 3
-      volumes:
-      - name: data
-        persistentVolumeClaim:
-          claimName: transmission-web-data
