@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Magnet, FolderOpen } from 'lucide-react'
+import { FolderOpen, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { addMagnet, addTorrentFiles } from '@/api/client'
 
 export function AddTorrentForm() {
@@ -41,41 +40,29 @@ export function AddTorrentForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Add Torrent</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-2">
-        <Input
-          value={magnet}
-          onChange={(e) => setMagnet(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submitMagnet()}
-          placeholder="Paste magnet link or torrent URL..."
-          className="min-w-64 flex-1"
-          disabled={submitting}
-        />
-        <Button
-          size="icon"
-          variant="secondary"
-          onClick={submitMagnet}
-          disabled={submitting}
-          aria-label="Add magnet link"
-          title="Add magnet link"
-        >
-          <Magnet />
-        </Button>
-        <Button
-          size="icon"
-          variant="secondary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={submitting}
-          aria-label="Upload .torrent file(s)"
-          title="Upload .torrent file(s)"
-        >
-          <FolderOpen />
-        </Button>
-        <input ref={fileInputRef} type="file" accept=".torrent" multiple className="hidden" onChange={onFilesSelected} />
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2">
+      <Input
+        value={magnet}
+        onChange={(e) => setMagnet(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && submitMagnet()}
+        placeholder="Paste magnet link or torrent URL..."
+        aria-label="Magnet link or torrent URL"
+        className="min-w-0 flex-1"
+        disabled={submitting}
+      />
+      <Button onClick={submitMagnet} disabled={submitting || !magnet.trim()}>
+        <Plus /> Add
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={submitting}
+        aria-label="Upload .torrent file(s)"
+        title="Upload .torrent file(s)"
+      >
+        <FolderOpen /> <span className="hidden sm:inline">Upload</span>
+      </Button>
+      <input ref={fileInputRef} type="file" accept=".torrent" multiple className="hidden" onChange={onFilesSelected} />
+    </div>
   )
 }

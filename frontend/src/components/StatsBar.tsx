@@ -13,41 +13,32 @@ const TEN_GIB = 10 * 1024 * 1024 * 1024
 
 function Stat({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-sm">
-      <span className="text-muted-foreground">{label}:</span>
-      <span className={cn('font-semibold text-primary tabular-nums', valueClassName)}>{value}</span>
+    <div className="bg-card px-3 py-2">
+      <div className="truncate text-xs text-muted-foreground">{label}</div>
+      <div className={cn('truncate text-sm font-semibold tabular-nums', valueClassName)}>{value}</div>
     </div>
   )
 }
 
+// Cells are separated by the 1px gap showing the border colour through, which
+// keeps dividers correct however the grid wraps.
 export function StatsBar({ stats, libraryRatio, freeSpace, portOpen }: StatsBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg bg-border ring-1 ring-foreground/10 sm:grid-cols-6">
       <Stat label="Down" value={formatSpeed(stats?.downloadSpeed ?? 0)} valueClassName="text-downloading" />
-      <Stat label="Up" value={formatSpeed(stats?.uploadSpeed ?? 0)} />
+      <Stat label="Up" value={formatSpeed(stats?.uploadSpeed ?? 0)} valueClassName="text-primary" />
       <Stat label="Torrents" value={String(stats?.torrentCount ?? 0)} />
+      <Stat label="Ratio" value={formatRatio(libraryRatio)} />
       <Stat
-        label="Ratio"
-        value={formatRatio(libraryRatio)}
-        valueClassName="text-foreground"
+        label={freeSpace ? `Free of ${formatBytes(freeSpace.total_size)}` : 'Free'}
+        value={freeSpace ? formatBytes(freeSpace['size-bytes']) : '—'}
+        valueClassName={freeSpace && freeSpace['size-bytes'] < TEN_GIB ? 'text-destructive' : undefined}
       />
-      {freeSpace && (
-        <Stat
-          label="Free"
-          value={`${formatBytes(freeSpace['size-bytes'])} / ${formatBytes(freeSpace.total_size)}`}
-          valueClassName={freeSpace['size-bytes'] < TEN_GIB ? 'text-destructive' : undefined}
-        />
-      )}
-      {portOpen !== null && (
-        <span
-          className={cn(
-            'rounded-full px-3 py-1 text-xs font-semibold uppercase',
-            portOpen ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive',
-          )}
-        >
-          Port {portOpen ? 'Open' : 'Closed'}
-        </span>
-      )}
+      <Stat
+        label="Port"
+        value={portOpen === null ? '—' : portOpen ? 'Open' : 'Closed'}
+        valueClassName={portOpen === null ? undefined : portOpen ? 'text-success' : 'text-destructive'}
+      />
     </div>
   )
 }

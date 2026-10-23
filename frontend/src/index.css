@@ -32,7 +32,7 @@
   --accent: #16213e;
   --accent-foreground: #eeeeee;
 
-  --destructive: #e74c3c;
+  --destructive: #f0645a;
   --destructive-foreground: #eeeeee;
 
   --border: rgba(255, 255, 255, 0.08);
@@ -40,7 +40,7 @@
   --ring: #4ecca3;
 
   --warning: #f39c12;
-  --success: #27ae60;
+  --success: #4ecca3;
   --downloading: #3498db;
   --peers-bg: #172033;
 

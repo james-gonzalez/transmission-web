@@ -49,7 +49,9 @@ export function getStatusText(status: TorrentStatus): string {
   return STATUS_TEXT[status] ?? 'Unknown'
 }
 
-const STATUS_CLASS: Record<TorrentStatus, string> = {
+export type StatusTone = 'stopped' | 'queued' | 'downloading' | 'seeding'
+
+const STATUS_TONE: Record<TorrentStatus, StatusTone> = {
   0: 'stopped',
   1: 'queued',
   2: 'queued',
@@ -59,8 +61,8 @@ const STATUS_CLASS: Record<TorrentStatus, string> = {
   6: 'seeding',
 }
 
-export function getStatusClass(status: TorrentStatus): string {
-  return STATUS_CLASS[status] ?? ''
+export function getStatusTone(status: TorrentStatus): StatusTone {
+  return STATUS_TONE[status] ?? 'stopped'
 }
 
 export function formatDateTime(date: Date): string {
