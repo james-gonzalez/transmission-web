@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getFiles, setFilesWanted } from '@/api/client'
 import type { TorrentFile } from '@/api/types'
@@ -12,13 +12,18 @@ export function FilesPanel({ torrentId }: { torrentId: number }) {
   const [files, setFiles] = useState<TorrentFile[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
-  const load = () => {
+  // Keep the last good list on a failed refresh rather than flashing "No files".
+  const load = useCallback(() => {
     getFiles(torrentId)
       .then((data) => setFiles(data.files))
-      .catch(() => setFiles([]))
-  }
+      .catch(() => setFiles((prev) => prev ?? []))
+  }, [torrentId])
 
-  useEffect(load, [torrentId])
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 3000)
+    return () => clearInterval(interval)
+  }, [load])
 
   if (files === null) return <p className="p-4 text-sm text-muted-foreground">Loading files...</p>
   if (files.length === 0) return <p className="p-4 text-sm text-muted-foreground">No files</p>
@@ -65,7 +70,9 @@ export function FilesPanel({ torrentId }: { torrentId: number }) {
             <TableHead className="w-8">
               <Checkbox
                 title="Select all"
+                aria-label="Select all files"
                 checked={selected.size === files.length}
+                indeterminate={selected.size > 0 && selected.size < files.length}
                 onCheckedChange={(checked) => toggleAll(checked === true)}
               />
             </TableHead>
@@ -80,6 +87,7 @@ export function FilesPanel({ torrentId }: { torrentId: number }) {
             <TableRow key={file.index} className={cn(!file.wanted && 'opacity-50')}>
               <TableCell>
                 <Checkbox
+                  aria-label={`Select ${file.name}`}
                   checked={selected.has(file.index)}
                   onCheckedChange={(checked) => toggleOne(file.index, checked === true)}
                 />

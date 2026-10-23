@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -29,12 +30,13 @@ export function RatioEditor({ seedRatioLimit, seedRatioMode, onSave, onClose }: 
         step="0.1"
         min="0"
         placeholder="e.g. 2.0"
+        aria-label="Seed ratio limit"
         value={ratio}
         onChange={(e) => setRatio(e.target.value)}
         className="w-24"
       />
       <Select items={MODE_LABELS} value={mode} onValueChange={(value) => value !== null && setMode(value)}>
-        <SelectTrigger>
+        <SelectTrigger aria-label="Seed ratio mode">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -46,8 +48,8 @@ export function RatioEditor({ seedRatioLimit, seedRatioMode, onSave, onClose }: 
       <Button size="sm" disabled={!valid} onClick={() => onSave(Number.isFinite(value) ? value : 0, parseInt(mode, 10))}>
         Save
       </Button>
-      <Button size="sm" variant="ghost" onClick={onClose}>
-        ×
+      <Button size="icon-sm" variant="ghost" onClick={onClose} aria-label="Close ratio editor" title="Close">
+        <X />
       </Button>
     </div>
   )
