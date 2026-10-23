@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FeedCard } from './FeedCard'
 import { FeedFormDialog } from './FeedFormDialog'
 import { FeedLogDialog } from './FeedLogDialog'
@@ -11,6 +12,10 @@ export function FeedsSection() {
   const [feeds, setFeeds] = useState<Feed[] | null>(null)
   const [formFeed, setFormFeed] = useState<Feed | null | undefined>(undefined)
   const [logFeed, setLogFeed] = useState<Feed | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Feed | null>(null)
+  // Remember the last target so its name stays visible during the close animation.
+  const [shownDelete, setShownDelete] = useState(deleteTarget)
+  if (deleteTarget && deleteTarget !== shownDelete) setShownDelete(deleteTarget)
 
   const load = () => {
     getFeeds()
@@ -21,7 +26,7 @@ export function FeedsSection() {
   useEffect(load, [])
 
   const handleDelete = async (feed: Feed) => {
-    if (!confirm(`Delete RSS feed "${feed.name}"?`)) return
+    setDeleteTarget(null)
     try {
       await deleteFeed(feed.id)
       load()
@@ -64,7 +69,7 @@ export function FeedsSection() {
             key={feed.id}
             feed={feed}
             onEdit={setFormFeed}
-            onDelete={handleDelete}
+            onDelete={setDeleteTarget}
             onCheckNow={handleCheckNow}
             onViewLog={setLogFeed}
           />
@@ -78,6 +83,24 @@ export function FeedsSection() {
         onSaved={load}
       />
       <FeedLogDialog feed={logFeed} onClose={() => setLogFeed(null)} />
+      <Dialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete RSS Feed</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete <span className="font-medium text-foreground">{shownDelete?.name}</span>?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => deleteTarget && handleDelete(deleteTarget)}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

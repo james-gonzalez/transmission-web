@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getTrackers } from '@/api/client'
 import type { TrackerStats } from '@/api/types'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatRelativeTime } from '@/lib/format'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export function TrackersPanel({ torrentId }: { torrentId: number }) {
@@ -50,8 +50,10 @@ export function TrackersPanel({ torrentId }: { torrentId: number }) {
             </TableCell>
             <TableCell>{tracker.seederCount}</TableCell>
             <TableCell>{tracker.leecherCount}</TableCell>
-            <TableCell>
-              {tracker.lastAnnounceTime > 0 ? formatDateTime(new Date(tracker.lastAnnounceTime * 1000)) : 'Never'}
+            <TableCell
+              title={tracker.lastAnnounceTime > 0 ? formatDateTime(new Date(tracker.lastAnnounceTime * 1000)) : undefined}
+            >
+              {tracker.lastAnnounceTime > 0 ? formatRelativeTime(new Date(tracker.lastAnnounceTime * 1000)) : 'Never'}
             </TableCell>
           </TableRow>
         ))}
