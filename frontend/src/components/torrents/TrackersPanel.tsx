@@ -48,8 +48,8 @@ export function TrackersPanel({ torrentId }: { torrentId: number }) {
                 </span>
               )}
             </TableCell>
-            <TableCell>{tracker.seederCount}</TableCell>
-            <TableCell>{tracker.leecherCount}</TableCell>
+            <TableCell>{tracker.seederCount >= 0 ? tracker.seederCount : '—'}</TableCell>
+            <TableCell>{tracker.leecherCount >= 0 ? tracker.leecherCount : '—'}</TableCell>
             <TableCell
               title={tracker.lastAnnounceTime > 0 ? formatDateTime(new Date(tracker.lastAnnounceTime * 1000)) : undefined}
             >
