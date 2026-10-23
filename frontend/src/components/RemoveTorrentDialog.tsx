@@ -19,6 +19,9 @@ interface RemoveTorrentDialogProps {
 
 export function RemoveTorrentDialog({ torrent, onClose, onConfirm }: RemoveTorrentDialogProps) {
   const [deleteData, setDeleteData] = useState(false)
+  // Remember the last torrent so its name stays visible during the close animation.
+  const [shown, setShown] = useState(torrent)
+  if (torrent && torrent !== shown) setShown(torrent)
 
   return (
     <Dialog
@@ -35,7 +38,7 @@ export function RemoveTorrentDialog({ torrent, onClose, onConfirm }: RemoveTorre
           <DialogTitle>Remove Torrent</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Remove <span className="font-medium text-foreground">{torrent?.name}</span>?
+          Remove <span className="font-medium text-foreground">{shown?.name}</span>?
         </p>
         <div className="flex items-center gap-2">
           <Checkbox id="delete-data" checked={deleteData} onCheckedChange={(c) => setDeleteData(c === true)} />
