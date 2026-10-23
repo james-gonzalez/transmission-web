@@ -1,18 +1,23 @@
 import type { TorrentStatus } from '@/api/types'
 
+// Steps up a unit once the value would print as 1000 or more, so 1,033,000 B
+// reads "1.0 MB" rather than "1008.8 KB".
+function formatScaled(bytes: number, units: string[]): string {
+  let value = bytes
+  let i = 0
+  while (value >= 999.95 && i < units.length - 1) {
+    value /= 1024
+    i++
+  }
+  return i === 0 ? `${value} ${units[0]}` : `${value.toFixed(1)} ${units[i]}`
+}
+
 export function formatSpeed(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B/s'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB/s'
-  return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB/s'
+  return formatScaled(bytes, ['B/s', 'KB/s', 'MB/s', 'GB/s'])
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-  if (bytes < 1024 * 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB'
-  return (bytes / 1024 / 1024 / 1024 / 1024).toFixed(1) + ' TB'
+  return formatScaled(bytes, ['B', 'KB', 'MB', 'GB', 'TB'])
 }
 
 export function formatPercent(pct: number): string {
