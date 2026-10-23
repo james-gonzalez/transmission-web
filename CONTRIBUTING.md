@@ -142,12 +142,13 @@ BREAKING CHANGE: All RPC methods now require context.Context as first parameter
 
 ## Testing
 
-There are currently no Go tests in the repository, so `go test ./...` passes
-trivially. Contributions that add coverage are very welcome — the RPC client
-and the HTTP handlers are the highest-value places to start.
+`main_test.go` covers the RPC client and HTTP handlers against a fake
+Transmission endpoint, so no daemon is needed. The binary embeds
+`frontend/dist`, so build the frontend once before running the tests:
 
 ```bash
-go test -v ./...
+cd frontend && npm run build && cd ..
+go test -race ./...
 ```
 
 Linting runs in CI and should pass locally before you open a PR:

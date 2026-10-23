@@ -677,9 +677,15 @@ func newFrontendHandler() (http.Handler, error) {
 	fileServer := http.FileServer(http.FS(dist))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := fs.Stat(dist, strings.TrimPrefix(r.URL.Path, "/")); err != nil {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if _, err := fs.Stat(dist, path); err != nil {
 			r = r.Clone(r.Context())
 			r.URL.Path = "/"
+		} else if strings.HasPrefix(path, "assets/") {
+			// Vite content-hashes everything under assets/, so a given URL never
+			// changes. Embedded files carry no modtime, so without this browsers
+			// get no validators and re-download them on every load.
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		fileServer.ServeHTTP(w, r)
 	}), nil
