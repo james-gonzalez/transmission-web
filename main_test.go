@@ -1,0 +1,436 @@
+package main
+
+import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+)
+
+// fakeTransmission is a stand-in Transmission RPC endpoint. It enforces the
+// session-id handshake, records each RPC call, and answers with the arguments
+// registered for that method (or a canned "success" with no arguments).
+type fakeTransmission struct {
+	t         *testing.T
+	sessionID string
+	result    string // overrides "success" when set
+	replies   map[string]any
+
+	mu    sync.Mutex
+	calls []RPCRequest
+	auth  string
+}
+
+func newFakeTransmission(t *testing.T) (*fakeTransmission, *TransmissionClient) {
+	t.Helper()
+	f := &fakeTransmission{t: t, sessionID: "sid-1", replies: map[string]any{}}
+	srv := httptest.NewServer(f)
+	t.Cleanup(srv.Close)
+	return f, NewTransmissionClient(srv.URL, "user", "pass")
+}
+
+func (f *fakeTransmission) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Transmission-Session-Id") != f.sessionID {
+		w.Header().Set("X-Transmission-Session-Id", f.sessionID)
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	var req struct {
+		Method    string         `json:"method"`
+		Arguments map[string]any `json:"arguments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		f.t.Errorf("fake transmission: bad request body: %v", err)
+		return
+	}
+
+	f.mu.Lock()
+	f.calls = append(f.calls, RPCRequest{Method: req.Method, Arguments: req.Arguments})
+	f.auth = r.Header.Get("Authorization")
+	f.mu.Unlock()
+
+	result := "success"
+	if f.result != "" {
+		result = f.result
+	}
+	args, err := json.Marshal(f.replies[req.Method])
+	if err != nil {
+		f.t.Errorf("fake transmission: marshal reply: %v", err)
+	}
+	if err := json.NewEncoder(w).Encode(map[string]any{"result": result, "arguments": json.RawMessage(args)}); err != nil {
+		f.t.Errorf("fake transmission: encode reply: %v", err)
+	}
+}
+
+func (f *fakeTransmission) lastCall(t *testing.T) RPCRequest {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) == 0 {
+		t.Fatal("expected an RPC call, got none")
+	}
+	return f.calls[len(f.calls)-1]
+}
+
+func (f *fakeTransmission) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.calls)
+}
+
+func TestDoRequestNegotiatesSessionID(t *testing.T) {
+	f, client := newFakeTransmission(t)
+
+	if err := client.StartTorrent(1); err != nil {
+		t.Fatalf("StartTorrent: %v", err)
+	}
+	if got := f.callCount(); got != 1 {
+		t.Fatalf("calls after handshake = %d, want 1", got)
+	}
+	wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+	if f.auth != wantAuth {
+		t.Errorf("Authorization = %q, want %q", f.auth, wantAuth)
+	}
+
+	// Transmission rotates the session id; the client should pick up the new one.
+	f.sessionID = "sid-2"
+	if err := client.StopTorrent(1); err != nil {
+		t.Fatalf("StopTorrent after rotation: %v", err)
+	}
+	if got := f.lastCall(t).Method; got != "torrent-stop" {
+		t.Errorf("method = %q, want torrent-stop", got)
+	}
+}
+
+func TestDoRequestReportsRPCError(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	f.result = "invalid or corrupt torrent file"
+
+	err := client.AddTorrent("magnet:?xt=urn:btih:abc", nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid or corrupt torrent file") {
+		t.Fatalf("err = %v, want RPC error containing the result string", err)
+	}
+}
+
+func TestDoRequestGivesUpOnRepeatedConflict(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict) // never hands out a session id
+	}))
+	t.Cleanup(srv.Close)
+
+	err := NewTransmissionClient(srv.URL, "", "").StartTorrent(1)
+	if err == nil || !strings.Contains(err.Error(), "session ID negotiation failed") {
+		t.Fatalf("err = %v, want session negotiation failure", err)
+	}
+}
+
+func TestGetFilesZipsWantedFlags(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	f.replies["torrent-get"] = map[string]any{"torrents": []any{map[string]any{
+		"files": []any{
+			map[string]any{"name": "a.mkv", "length": 100, "bytesCompleted": 50},
+			map[string]any{"name": "b.srt", "length": 10, "bytesCompleted": 0},
+			map[string]any{"name": "c.nfo", "length": 1, "bytesCompleted": 1},
+		},
+		// Shorter than files: missing entries default to wanted.
+		"fileStats": []any{map[string]any{"wanted": true}, map[string]any{"wanted": false}},
+	}}}
+
+	files, err := client.GetFiles(7)
+	if err != nil {
+		t.Fatalf("GetFiles: %v", err)
+	}
+	want := []File{
+		{Index: 0, Name: "a.mkv", Length: 100, BytesCompleted: 50, Wanted: true},
+		{Index: 1, Name: "b.srt", Length: 10, BytesCompleted: 0, Wanted: false},
+		{Index: 2, Name: "c.nfo", Length: 1, BytesCompleted: 1, Wanted: true},
+	}
+	if !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %+v, want %+v", files, want)
+	}
+}
+
+func TestHandleActionMapsToRPC(t *testing.T) {
+	tests := []struct {
+		body       string
+		wantMethod string
+		wantArgs   map[string]any
+	}{
+		{`{"action":"start","id":3}`, "torrent-start", map[string]any{"ids": []any{3.0}}},
+		{`{"action":"stop","id":3}`, "torrent-stop", map[string]any{"ids": []any{3.0}}},
+		{`{"action":"reannounce","id":3}`, "torrent-reannounce", map[string]any{"ids": []any{3.0}}},
+		{`{"action":"reannounce-all"}`, "torrent-reannounce", nil},
+		{
+			`{"action":"remove","id":3,"deleteData":true}`, "torrent-remove",
+			map[string]any{"ids": []any{3.0}, "delete-local-data": true},
+		},
+		{
+			`{"action":"set-ratio","id":3,"ratio":1.5,"ratioMode":1}`, "torrent-set",
+			map[string]any{"ids": []any{3.0}, "seedRatioLimit": 1.5, "seedRatioMode": 1.0},
+		},
+		{
+			`{"action":"set-global-ratio","ratio":2,"enabled":true}`, "session-set",
+			map[string]any{"seedRatioLimit": 2.0, "seedRatioLimited": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.body, func(t *testing.T) {
+			f, client := newFakeTransmission(t)
+			rec := httptest.NewRecorder()
+			NewServer(client).handleAction(rec, httptest.NewRequest(http.MethodPost, "/api/action", strings.NewReader(tt.body)))
+
+			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+				t.Fatalf("response = %d %s, want 200 status ok", rec.Code, rec.Body.String())
+			}
+			call := f.lastCall(t)
+			if call.Method != tt.wantMethod {
+				t.Errorf("method = %q, want %q", call.Method, tt.wantMethod)
+			}
+			gotArgs, _ := call.Arguments.(map[string]any)
+			if tt.wantArgs == nil && gotArgs == nil {
+				return
+			}
+			if !reflect.DeepEqual(gotArgs, tt.wantArgs) {
+				t.Errorf("args = %v, want %v", gotArgs, tt.wantArgs)
+			}
+		})
+	}
+}
+
+func TestHandleActionRejectsBadRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		body   string
+		want   int
+	}{
+		{"wrong method", http.MethodGet, "", http.StatusMethodNotAllowed},
+		{"invalid json", http.MethodPost, "{", http.StatusBadRequest},
+		{"unknown action", http.MethodPost, `{"action":"explode"}`, http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, client := newFakeTransmission(t)
+			rec := httptest.NewRecorder()
+			NewServer(client).handleAction(rec, httptest.NewRequest(tt.method, "/api/action", strings.NewReader(tt.body)))
+			if rec.Code != tt.want {
+				t.Errorf("status = %d, want %d", rec.Code, tt.want)
+			}
+			if n := f.callCount(); n != 0 {
+				t.Errorf("RPC calls = %d, want 0", n)
+			}
+		})
+	}
+}
+
+func TestHandleActionReportsRPCFailure(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	f.result = "torrent not found"
+
+	rec := httptest.NewRecorder()
+	NewServer(client).handleAction(rec, httptest.NewRequest(http.MethodPost, "/api/action", strings.NewReader(`{"action":"start","id":9}`)))
+
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.Contains(body["error"], "torrent not found") {
+		t.Errorf("error = %q, want it to mention the RPC result", body["error"])
+	}
+}
+
+func multipartBody(t *testing.T, fields map[string]string, files map[string][]byte) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, data := range files {
+		fw, err := mw.CreateFormFile("torrent-file", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fw.Write(data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return &buf, mw.FormDataContentType()
+}
+
+func TestHandleAddMagnet(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	body, ctype := multipartBody(t, map[string]string{"magnet": "magnet:?xt=urn:btih:abc"}, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/add", body)
+	req.Header.Set("Content-Type", ctype)
+
+	rec := httptest.NewRecorder()
+	NewServer(client).handleAdd(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	call := f.lastCall(t)
+	args, _ := call.Arguments.(map[string]any)
+	if call.Method != "torrent-add" || args["filename"] != "magnet:?xt=urn:btih:abc" {
+		t.Errorf("call = %+v, want torrent-add with the magnet as filename", call)
+	}
+}
+
+func TestHandleAddTorrentFiles(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	files := map[string][]byte{"a.torrent": []byte("d4:infoe"), "b.torrent": []byte("d4:infoi1ee")}
+	body, ctype := multipartBody(t, nil, files)
+	req := httptest.NewRequest(http.MethodPost, "/api/add", body)
+	req.Header.Set("Content-Type", ctype)
+
+	rec := httptest.NewRecorder()
+	NewServer(client).handleAdd(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	got := map[string]bool{}
+	for _, c := range f.calls {
+		args, _ := c.Arguments.(map[string]any)
+		meta, _ := args["metainfo"].(string)
+		got[meta] = true
+	}
+	for _, data := range files {
+		if enc := base64.StdEncoding.EncodeToString(data); !got[enc] {
+			t.Errorf("no torrent-add with metainfo %q; calls: %+v", enc, f.calls)
+		}
+	}
+}
+
+func TestHandleAddRejectsEmptyAndFailedUploads(t *testing.T) {
+	t.Run("nothing provided", func(t *testing.T) {
+		_, client := newFakeTransmission(t)
+		body, ctype := multipartBody(t, nil, nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/add", body)
+		req.Header.Set("Content-Type", ctype)
+		rec := httptest.NewRecorder()
+		NewServer(client).handleAdd(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400", rec.Code)
+		}
+	})
+
+	t.Run("every file rejected", func(t *testing.T) {
+		f, client := newFakeTransmission(t)
+		f.result = "invalid or corrupt torrent file"
+		body, ctype := multipartBody(t, nil, map[string][]byte{"bad.torrent": []byte("x")})
+		req := httptest.NewRequest(http.MethodPost, "/api/add", body)
+		req.Header.Set("Content-Type", ctype)
+		rec := httptest.NewRecorder()
+		NewServer(client).handleAdd(rec, req)
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("status = %d, want 500", rec.Code)
+		}
+	})
+}
+
+func TestHandleSetFiles(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	rec := httptest.NewRecorder()
+	NewServer(client).handleSetFiles(rec, httptest.NewRequest(http.MethodPost, "/api/files/set",
+		strings.NewReader(`{"id":4,"indices":[0,2],"wanted":false}`)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	call := f.lastCall(t)
+	want := map[string]any{"ids": []any{4.0}, "files-unwanted": []any{0.0, 2.0}}
+	if call.Method != "torrent-set" || !reflect.DeepEqual(call.Arguments, want) {
+		t.Errorf("call = %s %v, want torrent-set %v", call.Method, call.Arguments, want)
+	}
+
+	rec = httptest.NewRecorder()
+	NewServer(client).handleSetFiles(rec, httptest.NewRequest(http.MethodPost, "/api/files/set",
+		strings.NewReader(`{"id":4,"indices":[],"wanted":true}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty indices: status = %d, want 400", rec.Code)
+	}
+}
+
+func TestDetailHandlersValidateID(t *testing.T) {
+	_, client := newFakeTransmission(t)
+	s := NewServer(client)
+	handlers := map[string]http.HandlerFunc{"peers": s.handlePeers, "trackers": s.handleTrackers, "files": s.handleFiles}
+
+	for name, h := range handlers {
+		for query, wantErr := range map[string]string{"": "missing id parameter", "?id=abc": "invalid id"} {
+			rec := httptest.NewRecorder()
+			h(rec, httptest.NewRequest(http.MethodGet, "/api/"+name+query, nil))
+			if !strings.Contains(rec.Body.String(), wantErr) {
+				t.Errorf("%s%s: body = %s, want error %q", name, query, rec.Body.String(), wantErr)
+			}
+		}
+	}
+}
+
+func TestFrontendHandlerFallsBackToIndex(t *testing.T) {
+	h, err := newFrontendHandler()
+	if err != nil {
+		t.Fatalf("newFrontendHandler: %v (build the frontend first)", err)
+	}
+
+	for _, path := range []string{"/", "/some/client/route"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<div id=\"root\">") {
+			t.Errorf("%s: status %d, want index.html", path, rec.Code)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/favicon.svg", nil))
+	if !strings.Contains(rec.Header().Get("Content-Type"), "svg") {
+		t.Errorf("favicon Content-Type = %q, want an svg type", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestGzipHandler(t *testing.T) {
+	const payload = `{"hello":"world"}`
+	h := gzipHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, payload)
+	}))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
+	h.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", rec.Header().Get("Content-Encoding"))
+	}
+	zr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip reader: %v", err)
+	}
+	got, _ := io.ReadAll(zr)
+	if string(got) != payload {
+		t.Errorf("decompressed = %q, want %q", got, payload)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Header().Get("Content-Encoding") != "" || rec.Body.String() != payload {
+		t.Errorf("without Accept-Encoding: encoding %q body %q, want plain payload", rec.Header().Get("Content-Encoding"), rec.Body.String())
+	}
+}
