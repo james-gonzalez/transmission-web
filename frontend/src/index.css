@@ -3,7 +3,12 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+/* The palette is dark-only; <html class="dark"> enables shadcn's dark: styles
+   regardless of the OS colour-scheme preference. */
+@custom-variant dark (&:is(.dark *));
+
 :root {
+  color-scheme: dark;
   --font-sans: 'Geist Variable', system-ui, sans-serif;
 
   --background: #1a1a2e;
