@@ -75,6 +75,22 @@ export function formatDateTime(date: Date): string {
   return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`
 }
 
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['day', 86400],
+  ['hour', 3600],
+  ['minute', 60],
+]
+
+const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+
+export function formatRelativeTime(date: Date): string {
+  const seconds = Math.round((date.getTime() - Date.now()) / 1000)
+  for (const [unit, size] of RELATIVE_UNITS) {
+    if (Math.abs(seconds) >= size) return relativeFormat.format(Math.round(seconds / size), unit)
+  }
+  return 'just now'
+}
+
 export function formatDuration(secondsInput: number): string {
   const seconds = Math.floor(secondsInput)
   if (seconds <= 0) return '0m'

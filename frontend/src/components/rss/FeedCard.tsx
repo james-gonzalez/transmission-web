@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { Feed } from '@/api/types'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatRelativeTime } from '@/lib/format'
 
 interface FeedCardProps {
   feed: Feed
@@ -42,7 +42,9 @@ export function FeedCard({ feed, onEdit, onDelete, onCheckNow, onViewLog }: Feed
         </p>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>Interval: {feed.checkInterval}m</span>
-          <span>Last checked: {feed.lastChecked ? formatDateTime(new Date(feed.lastChecked)) : 'Never'}</span>
+          <span title={feed.lastChecked ? formatDateTime(new Date(feed.lastChecked)) : undefined}>
+            Last checked: {feed.lastChecked ? formatRelativeTime(new Date(feed.lastChecked)) : 'Never'}
+          </span>
           <span>Matches: {feed.matchCount}</span>
           {feed.lastError && <span className="text-destructive">Error: {feed.lastError}</span>}
         </div>
