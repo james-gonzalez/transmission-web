@@ -8,6 +8,8 @@ import { SORTS, type SortKey } from '@/lib/sort'
 import type { Torrent } from '@/api/types'
 import { countByFilter } from '@/lib/filters'
 
+const SORT_LABELS = Object.fromEntries(SORTS.map(({ key, label }) => [key, label]))
+
 interface FilterBarProps {
   torrents: Torrent[]
   filter: FilterKey
@@ -16,6 +18,7 @@ interface FilterBarProps {
   onSearchChange: (search: string) => void
   sort: SortKey
   onSortChange: (sort: SortKey) => void
+  actions?: React.ReactNode
 }
 
 export function FilterBar({
@@ -26,6 +29,7 @@ export function FilterBar({
   onSearchChange,
   sort,
   onSortChange,
+  actions,
 }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -45,7 +49,8 @@ export function FilterBar({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={sort} onValueChange={(value) => value !== null && onSortChange(value as SortKey)}>
+        {actions}
+        <Select items={SORT_LABELS} value={sort} onValueChange={(value) => value !== null && onSortChange(value as SortKey)}>
           <SelectTrigger size="sm" className="w-44" aria-label="Sort torrents by">
             <ArrowUpDown className="size-3.5 text-muted-foreground" />
             <SelectValue />

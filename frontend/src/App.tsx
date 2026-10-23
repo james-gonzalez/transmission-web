@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { Rss } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import { Header } from '@/components/Header'
 import { AddTorrentForm } from '@/components/AddTorrentForm'
 import { FilterBar } from '@/components/FilterBar'
+import { BulkActionsMenu } from '@/components/BulkActionsMenu'
 import { TorrentList } from '@/components/torrents/TorrentList'
 import { FeedsSection } from '@/components/rss/FeedsSection'
 import { RemoveTorrentDialog } from '@/components/RemoveTorrentDialog'
@@ -23,7 +23,7 @@ const META_REFRESH_MS = 60_000
 
 function App() {
   const { torrents, stats, status } = useTorrentStream()
-  const { remove, startMany, stopMany, reannounceMany } = useTorrentActions()
+  const { remove } = useTorrentActions()
 
   const [filter, setFilter] = useState<FilterKey>('all')
   const [search, setSearch] = useState('')
@@ -33,9 +33,7 @@ function App() {
   const [statsOpen, setStatsOpen] = useState(false)
   const [globalRatioOpen, setGlobalRatioOpen] = useState(false)
 
-  // Bulk actions target whatever the filter and search currently show.
   const visibleIds = filterTorrents(torrents, filter, search).map((t) => t.id)
-  const bulkScope = visibleIds.length === torrents.length ? 'All' : `${visibleIds.length} Shown`
 
   const [version, setVersion] = useState('dev')
   const [freeSpace, setFreeSpace] = useState<FreeSpace | null>(null)
@@ -76,17 +74,6 @@ function App() {
 
         <TabsContent value="torrents" className="flex flex-col gap-4">
           <AddTorrentForm />
-          <div className="flex flex-wrap gap-1.5">
-            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => startMany(visibleIds)}>
-              Start {bulkScope}
-            </Button>
-            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => stopMany(visibleIds)}>
-              Stop {bulkScope}
-            </Button>
-            <Button size="sm" variant="outline" disabled={visibleIds.length === 0} onClick={() => reannounceMany(visibleIds)}>
-              Reannounce {bulkScope}
-            </Button>
-          </div>
           <FilterBar
             torrents={torrents}
             filter={filter}
@@ -95,6 +82,7 @@ function App() {
             onSearchChange={setSearch}
             sort={sort}
             onSortChange={setSort}
+            actions={<BulkActionsMenu ids={visibleIds} total={torrents.length} />}
           />
           <TorrentList torrents={torrents} filter={filter} search={search} sort={sort} onRequestRemove={setRemoveTarget} />
         </TabsContent>

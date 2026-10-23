@@ -17,20 +17,22 @@ interface HeaderProps {
 
 export function Header({ status, stats, libraryRatio, freeSpace, portOpen, onOpenStats, onOpenGlobalRatio }: HeaderProps) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-primary">Transmission Web</h1>
-        <ConnectionIndicator status={status} />
+    <header className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-primary">Transmission Web</h1>
+          <ConnectionIndicator status={status} />
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={onOpenGlobalRatio} title="Set the daemon-wide default seed ratio">
+            <Scale /> Seed Ratio
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onOpenStats} title="Daemon statistics">
+            <BarChart3 /> Stats
+          </Button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <StatsBar stats={stats} libraryRatio={libraryRatio} freeSpace={freeSpace} portOpen={portOpen} />
-        <Button variant="secondary" size="sm" onClick={onOpenGlobalRatio} title="Set the daemon-wide default seed ratio">
-          <Scale /> Seed Ratio
-        </Button>
-        <Button variant="secondary" size="sm" onClick={onOpenStats} title="Daemon statistics">
-          <BarChart3 /> Stats
-        </Button>
-      </div>
+      <StatsBar stats={stats} libraryRatio={libraryRatio} freeSpace={freeSpace} portOpen={portOpen} />
     </header>
   )
 }

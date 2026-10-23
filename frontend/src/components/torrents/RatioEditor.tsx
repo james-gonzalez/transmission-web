@@ -3,6 +3,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
+const MODE_LABELS = { '1': 'Stop at ratio', '2': 'Seed forever', '0': 'Use global' }
+
 interface RatioEditorProps {
   seedRatioLimit: number
   seedRatioMode: number
@@ -31,7 +33,7 @@ export function RatioEditor({ seedRatioLimit, seedRatioMode, onSave, onClose }: 
         onChange={(e) => setRatio(e.target.value)}
         className="w-24"
       />
-      <Select value={mode} onValueChange={(value) => value !== null && setMode(value)}>
+      <Select items={MODE_LABELS} value={mode} onValueChange={(value) => value !== null && setMode(value)}>
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
