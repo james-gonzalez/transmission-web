@@ -21,7 +21,7 @@ export function TrackersPanel({ torrentId }: { torrentId: number }) {
   if (trackers.length === 0) return <p className="p-4 text-sm text-muted-foreground">No trackers</p>
 
   return (
-    <Table>
+    <Table className="tabular-nums">
       <TableHeader>
         <TableRow>
           <TableHead>Tracker</TableHead>
