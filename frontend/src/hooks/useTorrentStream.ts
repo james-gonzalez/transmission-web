@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SessionStats, StreamPayload, Torrent } from '@/api/types'
 
-export type ConnectionStatus = 'connecting' | 'live' | 'offline'
+export type ConnectionStatus = 'connecting' | 'live' | 'unreachable' | 'offline'
 
 export function useTorrentStream() {
   const [torrents, setTorrents] = useState<Torrent[]>([])
@@ -11,10 +11,15 @@ export function useTorrentStream() {
   useEffect(() => {
     const source = new EventSource('/api/stream')
 
-    source.addEventListener('open', () => setStatus('live'))
     source.onerror = () => setStatus('offline')
     source.onmessage = (event) => {
       const payload = JSON.parse(event.data) as StreamPayload
+      // The server is up but couldn't reach Transmission; keep the last data.
+      if ('error' in payload) {
+        setStatus('unreachable')
+        return
+      }
+      setStatus('live')
       // Go marshals a nil torrents slice as `null` rather than `[]`.
       setTorrents(payload.torrents ?? [])
       setStats(payload.stats)

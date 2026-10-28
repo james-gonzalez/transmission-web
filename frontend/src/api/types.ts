@@ -123,10 +123,9 @@ export type Action =
   | { action: 'set-ratio'; id: number; ratio: number; ratioMode: number }
   | { action: 'set-global-ratio'; ratio: number; enabled: boolean }
 
-export interface StreamPayload {
-  torrents: Torrent[] | null
-  stats: SessionStats
-}
+export type StreamPayload =
+  | { torrents: Torrent[] | null; stats: SessionStats }
+  | { error: string }
 
 export interface FreeSpace {
   path: string

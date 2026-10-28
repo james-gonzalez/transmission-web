@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"mime/multipart"
@@ -13,7 +15,9 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeTransmission is a stand-in Transmission RPC endpoint. It enforces the
@@ -460,5 +464,126 @@ func TestGzipHandler(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Header().Get("Content-Encoding") != "" || rec.Body.String() != payload {
 		t.Errorf("without Accept-Encoding: encoding %q body %q, want plain payload", rec.Header().Get("Content-Encoding"), rec.Body.String())
+	}
+}
+
+func recvEvent(t *testing.T, ch <-chan []byte) string {
+	t.Helper()
+	select {
+	case event := <-ch:
+		return string(event)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for a stream event")
+		return ""
+	}
+}
+
+func TestStreamHubSharesOnePollAcrossSubscribers(t *testing.T) {
+	release := make(chan struct{})
+	var polls atomic.Int32
+	hub := newStreamHub(func() []byte {
+		<-release
+		return []byte(fmt.Sprintf("event %d", polls.Add(1)))
+	}, 0)
+
+	a, unsubA := hub.subscribe()
+	b, unsubB := hub.subscribe()
+	for i := 1; i <= 3; i++ {
+		release <- struct{}{}
+		want := fmt.Sprintf("event %d", i)
+		if got := recvEvent(t, a); got != want {
+			t.Errorf("subscriber a got %q, want %q", got, want)
+		}
+		if got := recvEvent(t, b); got != want {
+			t.Errorf("subscriber b got %q, want %q", got, want)
+		}
+	}
+	if got := polls.Load(); got != 3 {
+		t.Errorf("polls = %d for two subscribers over 3 events, want 3", got)
+	}
+
+	// A late subscriber is greeted with the latest event, without a new poll.
+	c, unsubC := hub.subscribe()
+	if got := recvEvent(t, c); got != "event 3" {
+		t.Errorf("late subscriber got %q, want event 3", got)
+	}
+
+	// With nobody subscribed the hub stops after its in-flight poll.
+	unsubA()
+	unsubB()
+	unsubC()
+	release <- struct{}{}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		hub.mu.Lock()
+		running, latest := hub.running, hub.latest
+		hub.mu.Unlock()
+		if !running {
+			if latest != nil {
+				t.Errorf("stopped hub kept latest = %q, want nil", latest)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("hub still running with no subscribers")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+type streamTestPayload struct {
+	Torrents []Torrent `json:"torrents"`
+	Error    string    `json:"error"`
+}
+
+// firstStreamData opens /api/stream and returns the JSON of its first event.
+func firstStreamData(t *testing.T, s *Server) string {
+	t.Helper()
+	s.stream.interval = 10 * time.Millisecond
+	srv := httptest.NewServer(http.HandlerFunc(s.handleStream))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatalf("GET stream: %v", err)
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+	sc := bufio.NewScanner(resp.Body)
+	sc.Buffer(nil, 1<<20)
+	for sc.Scan() {
+		if data, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
+			return data
+		}
+	}
+	t.Fatalf("stream ended without a data line: %v", sc.Err())
+	return ""
+}
+
+func TestHandleStreamSendsTorrents(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	f.replies["torrent-get"] = map[string]any{"torrents": []map[string]any{{"id": 7, "name": "ubuntu.iso"}}}
+
+	var got streamTestPayload
+	if err := json.Unmarshal([]byte(firstStreamData(t, NewServer(client))), &got); err != nil {
+		t.Fatalf("decode event: %v", err)
+	}
+	if len(got.Torrents) != 1 || got.Torrents[0].Name != "ubuntu.iso" || got.Error != "" {
+		t.Errorf("event = %+v, want one torrent named ubuntu.iso and no error", got)
+	}
+}
+
+func TestHandleStreamReportsTransmissionErrors(t *testing.T) {
+	f, client := newFakeTransmission(t)
+	f.result = "daemon on fire"
+
+	var got streamTestPayload
+	if err := json.Unmarshal([]byte(firstStreamData(t, NewServer(client))), &got); err != nil {
+		t.Fatalf("decode event: %v", err)
+	}
+	if !strings.Contains(got.Error, "daemon on fire") {
+		t.Errorf("error = %q, want the RPC failure", got.Error)
 	}
 }
