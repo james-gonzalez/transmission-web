@@ -543,7 +543,11 @@ func firstStreamData(t *testing.T, s *Server) string {
 	srv := httptest.NewServer(http.HandlerFunc(s.handleStream))
 	t.Cleanup(srv.Close)
 
-	resp, err := http.Get(srv.URL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET stream: %v", err)
 	}
