@@ -605,6 +605,94 @@ type Server struct {
 	cachedFS     *FreeSpace
 	cachedFSAt   time.Time
 	cachedDir    string
+
+	stream *streamHub
+}
+
+// streamHub polls Transmission on behalf of every /api/stream client at once,
+// so N open tabs cost one torrent-get per interval rather than N. It only
+// polls while someone is subscribed, and never runs two polls concurrently.
+type streamHub struct {
+	poll     func() []byte // returns one encoded SSE event
+	interval time.Duration
+
+	mu      sync.Mutex
+	subs    map[chan []byte]struct{}
+	latest  []byte
+	running bool
+}
+
+func newStreamHub(poll func() []byte, interval time.Duration) *streamHub {
+	return &streamHub{poll: poll, interval: interval, subs: map[chan []byte]struct{}{}}
+}
+
+// subscribe registers a client. The channel always holds the newest event; a
+// slow reader skips stale ones rather than blocking the poller.
+func (h *streamHub) subscribe() (<-chan []byte, func()) {
+	ch := make(chan []byte, 1)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.subs[ch] = struct{}{}
+	if h.latest != nil {
+		ch <- h.latest
+	}
+	if !h.running {
+		h.running = true
+		go h.run()
+	}
+	return ch, func() {
+		h.mu.Lock()
+		delete(h.subs, ch)
+		h.mu.Unlock()
+	}
+}
+
+func (h *streamHub) run() {
+	for {
+		event := h.poll()
+
+		h.mu.Lock()
+		if len(h.subs) == 0 {
+			h.running = false
+			h.latest = nil // don't greet a later client with stale data
+			h.mu.Unlock()
+			return
+		}
+		h.latest = event
+		for ch := range h.subs {
+			select {
+			case <-ch: // drop the unread older event
+			default:
+			}
+			ch <- event
+		}
+		h.mu.Unlock()
+
+		time.Sleep(h.interval)
+	}
+}
+
+// pollStream fetches torrents + session stats as one SSE event. A failure is
+// sent as {"error": ...} so the UI can say Transmission is unreachable.
+func (s *Server) pollStream() []byte {
+	var payload interface{}
+	torrents, err := s.client.GetTorrents()
+	if err == nil {
+		var stats *SessionStats
+		if stats, err = s.client.GetSessionStats(); err == nil {
+			payload = map[string]interface{}{"torrents": torrents, "stats": stats}
+		}
+	}
+	if err != nil {
+		log.Printf("stream: %v", err)
+		payload = map[string]string{"error": err.Error()}
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("stream: marshal payload: %v", err)
+		data = []byte(`{"error":"failed to encode payload"}`)
+	}
+	return []byte(fmt.Sprintf("data: %s\n\n", data))
 }
 
 // cachedPortOpen returns TestPort result, refreshing at most once every 60s.
@@ -661,9 +749,11 @@ func (s *Server) cachedFreeSpace() *FreeSpace {
 }
 
 func NewServer(client *TransmissionClient) *Server {
-	return &Server{
+	s := &Server{
 		client: client,
 	}
+	s.stream = newStreamHub(s.pollStream, 1*time.Second)
+	return s
 }
 
 // newFrontendHandler serves the embedded, pre-built frontend/dist SPA. Since
@@ -719,7 +809,8 @@ func (s *Server) handleAPI(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleStream pushes torrent + session state to the client over Server-Sent
-// Events, once a second, so the UI updates live instead of polling.
+// Events, once a second, so the UI updates live instead of polling. The data
+// comes from the shared streamHub, not a per-client poll.
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -738,31 +829,22 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		log.Printf("stream: could not clear write deadline: %v", err)
 	}
 
-	ctx := r.Context()
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	// Send headers now so the browser sees the stream open even while the
+	// first Transmission call is still pending (or hanging).
+	flusher.Flush()
+
+	events, unsubscribe := s.stream.subscribe()
+	defer unsubscribe()
 
 	for {
-		torrents, err := s.client.GetTorrents()
-		if err != nil {
-			log.Printf("stream: get torrents: %v", err)
-		} else if stats, statsErr := s.client.GetSessionStats(); statsErr != nil {
-			log.Printf("stream: get session stats: %v", statsErr)
-		} else if payload, mErr := json.Marshal(map[string]interface{}{
-			"torrents": torrents,
-			"stats":    stats,
-		}); mErr != nil {
-			log.Printf("stream: marshal payload: %v", mErr)
-		} else if _, wErr := fmt.Fprintf(w, "data: %s\n\n", payload); wErr != nil {
-			return // client disconnected
-		} else {
-			flusher.Flush()
-		}
-
 		select {
-		case <-ctx.Done():
+		case <-r.Context().Done():
 			return
-		case <-ticker.C:
+		case event := <-events:
+			if _, err := w.Write(event); err != nil {
+				return // client disconnected
+			}
+			flusher.Flush()
 		}
 	}
 }

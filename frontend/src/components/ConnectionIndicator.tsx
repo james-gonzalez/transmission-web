@@ -4,6 +4,7 @@ import type { ConnectionStatus } from '@/hooks/useTorrentStream'
 const LABEL: Record<ConnectionStatus, string> = {
   connecting: 'Connecting…',
   live: 'Live',
+  unreachable: 'Transmission unreachable',
   offline: 'Reconnecting…',
 }
 
@@ -14,7 +15,7 @@ export function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
         className={cn(
           'size-2 rounded-full',
           status === 'live' && 'animate-pulse bg-success',
-          status === 'offline' && 'bg-destructive',
+          (status === 'offline' || status === 'unreachable') && 'bg-destructive',
           status === 'connecting' && 'bg-muted-foreground',
         )}
       />
